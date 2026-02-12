@@ -71,19 +71,10 @@ export class GitHubService {
             }
         );
 
-        const resp = await requestUrl({
-            url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-            method: 'PATCH',
-            headers: this.headers(),
-            body: JSON.stringify({ sha: commit.sha }),
-        });
-
-        if (resp.status === 409) {
-            throw new Error('409 conflict updating ref');
-        }
-        if (resp.status < 200 || resp.status >= 300) {
-            throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-        }
+        await this.apiPatch(
+            `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+            { sha: commit.sha }
+        );
 
         return commit.sha;
     }
@@ -194,19 +185,10 @@ export class GitHubService {
         );
 
         // Update ref
-        const resp = await requestUrl({
-            url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-            method: 'PATCH',
-            headers: this.headers(),
-            body: JSON.stringify({ sha: commit.sha }),
-        });
-
-        if (resp.status === 409) {
-            throw new Error('409 conflict updating ref');
-        }
-        if (resp.status < 200 || resp.status >= 300) {
-            throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-        }
+        await this.apiPatch(
+            `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+            { sha: commit.sha }
+        );
 
         return commit.sha;
     }
@@ -220,29 +202,39 @@ export class GitHubService {
         };
     }
 
-    private async apiGet(path: string): Promise<Record<string, any>> {
-        const resp = await requestUrl({
-            url: `https://api.github.com${path}`,
-            method: 'GET',
-            headers: this.headers(),
-        });
-        if (resp.status < 200 || resp.status >= 300) {
-            throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
+    private async apiRequest(method: string, path: string, body?: Record<string, any>): Promise<Record<string, any>> {
+        const url = `https://api.github.com${path}`;
+        try {
+            const resp = await requestUrl({
+                url,
+                method,
+                headers: this.headers(),
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            return resp.json;
+        } catch (e: any) {
+            // Obsidian's requestUrl throws on non-2xx — extract details
+            const status = e?.status || 'unknown';
+            let detail = '';
+            try {
+                detail = JSON.stringify(e?.response?.json || e?.message || e);
+            } catch {
+                detail = String(e);
+            }
+            throw new Error(`GitHub ${status} on ${method} ${path}: ${detail}`);
         }
-        return resp.json;
+    }
+
+    private async apiGet(path: string): Promise<Record<string, any>> {
+        return this.apiRequest('GET', path);
     }
 
     private async apiPost(path: string, body: Record<string, any>): Promise<Record<string, any>> {
-        const resp = await requestUrl({
-            url: `https://api.github.com${path}`,
-            method: 'POST',
-            headers: this.headers(),
-            body: JSON.stringify(body),
-        });
-        if (resp.status < 200 || resp.status >= 300) {
-            throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-        }
-        return resp.json;
+        return this.apiRequest('POST', path, body);
+    }
+
+    private async apiPatch(path: string, body: Record<string, any>): Promise<Record<string, any>> {
+        return this.apiRequest('PATCH', path, body);
     }
 
     private arrayBufferToBase64(buffer: ArrayBuffer): string {

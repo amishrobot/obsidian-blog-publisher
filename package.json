@@ -1,6 +1,6 @@
 {
   "name": "obsidian-blog-publisher",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Publish blog posts from Obsidian to GitHub/Vercel",
   "main": "main.js",
   "scripts": {

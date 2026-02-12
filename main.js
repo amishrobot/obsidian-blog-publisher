@@ -201,18 +201,10 @@ var GitHubService = class {
         parents: [parentCommitSha]
       }
     );
-    const resp = await (0, import_obsidian2.requestUrl)({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      method: "PATCH",
-      headers: this.headers(),
-      body: JSON.stringify({ sha: commit.sha })
-    });
-    if (resp.status === 409) {
-      throw new Error("409 conflict updating ref");
-    }
-    if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-    }
+    await this.apiPatch(
+      `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+      { sha: commit.sha }
+    );
     return commit.sha;
   }
   async publish(postData) {
@@ -294,18 +286,10 @@ var GitHubService = class {
         parents: [parentCommitSha]
       }
     );
-    const resp = await (0, import_obsidian2.requestUrl)({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      method: "PATCH",
-      headers: this.headers(),
-      body: JSON.stringify({ sha: commit.sha })
-    });
-    if (resp.status === 409) {
-      throw new Error("409 conflict updating ref");
-    }
-    if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-    }
+    await this.apiPatch(
+      `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+      { sha: commit.sha }
+    );
     return commit.sha;
   }
   headers() {
@@ -316,28 +300,36 @@ var GitHubService = class {
       "X-GitHub-Api-Version": "2022-11-28"
     };
   }
-  async apiGet(path) {
-    const resp = await (0, import_obsidian2.requestUrl)({
-      url: `https://api.github.com${path}`,
-      method: "GET",
-      headers: this.headers()
-    });
-    if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
+  async apiRequest(method, path, body) {
+    var _a;
+    const url = `https://api.github.com${path}`;
+    try {
+      const resp = await (0, import_obsidian2.requestUrl)({
+        url,
+        method,
+        headers: this.headers(),
+        body: body ? JSON.stringify(body) : void 0
+      });
+      return resp.json;
+    } catch (e) {
+      const status = (e == null ? void 0 : e.status) || "unknown";
+      let detail = "";
+      try {
+        detail = JSON.stringify(((_a = e == null ? void 0 : e.response) == null ? void 0 : _a.json) || (e == null ? void 0 : e.message) || e);
+      } catch (e2) {
+        detail = String(e);
+      }
+      throw new Error(`GitHub ${status} on ${method} ${path}: ${detail}`);
     }
-    return resp.json;
+  }
+  async apiGet(path) {
+    return this.apiRequest("GET", path);
   }
   async apiPost(path, body) {
-    const resp = await (0, import_obsidian2.requestUrl)({
-      url: `https://api.github.com${path}`,
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify(body)
-    });
-    if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
-    }
-    return resp.json;
+    return this.apiRequest("POST", path, body);
+  }
+  async apiPatch(path, body) {
+    return this.apiRequest("PATCH", path, body);
   }
   arrayBufferToBase64(buffer) {
     const bytes = new Uint8Array(buffer);
