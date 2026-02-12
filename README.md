@@ -30,6 +30,8 @@ Settings → Blog Publisher:
 | Repository | `amishrobot/amishrobot.com` | Target `owner/repo` |
 | Branch | `main` | Branch to commit to |
 | Posts Folder | `Personal/Blog/posts` | Vault folder the plugin watches |
+| Theme Settings File | `Personal/Blog/settings/theme.md` | Vault markdown file watched for theme changes |
+| Theme Repo Path | `content/settings/theme.md` | Repo destination for theme settings file |
 | Site URL | `https://amishrobot.com` | Used for success notice links |
 
 ## How It Works
@@ -64,6 +66,17 @@ If you set `status: publish` without changing content, the plugin skips the comm
 ### Manual Publish
 
 Open the command palette and run **Publish Blog Post** to publish the current file regardless of the watcher.
+
+### Theme Settings Publish
+
+The plugin also watches your theme settings markdown file and commits it to the site repo:
+
+- Vault file: `Personal/Blog/settings/theme.md`
+- Repo file: `content/settings/theme.md`
+
+Any save to the theme file triggers a commit and deploy, so theme switches follow the same workflow as posts.
+
+Manual command: **Publish Blog Theme Settings**
 
 ## Frontmatter Contract
 

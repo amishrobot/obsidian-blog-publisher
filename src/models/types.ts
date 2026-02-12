@@ -3,6 +3,10 @@ export interface PluginSettings {
     repository: string;       // "owner/repo"
     branch: string;
     postsFolder: string;      // Vault folder to watch
+    themeFilePath: string;    // Vault markdown settings file
+    themeRepoPath: string;    // Repo path committed for theme settings
+    themePublishedHash: string;
+    themePublishedCommit: string;
     siteUrl: string;
 }
 
@@ -11,6 +15,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     repository: 'amishrobot/amishrobot.com',
     branch: 'main',
     postsFolder: 'Personal/Blog/posts',
+    themeFilePath: 'Personal/Blog/settings/theme.md',
+    themeRepoPath: 'content/settings/theme.md',
+    themePublishedHash: '',
+    themePublishedCommit: '',
     siteUrl: 'https://amishrobot.com',
 };
 

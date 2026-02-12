@@ -30,6 +30,10 @@ var DEFAULT_SETTINGS = {
   repository: "amishrobot/amishrobot.com",
   branch: "main",
   postsFolder: "Personal/Blog/posts",
+  themeFilePath: "Personal/Blog/settings/theme.md",
+  themeRepoPath: "content/settings/theme.md",
+  themePublishedHash: "",
+  themePublishedCommit: "",
   siteUrl: "https://amishrobot.com"
 };
 
@@ -213,18 +217,54 @@ var GitHubService = class {
     const blobs = await this.createBlobs(postData);
     let commitSha;
     try {
-      commitSha = await this.createCommitAndUpdateRef(blobs, treeSha, headSha, postData);
+      commitSha = await this.createCommitAndUpdateRef(
+        blobs,
+        treeSha,
+        headSha,
+        `Publish: ${postData.title}`
+      );
     } catch (e) {
       if (e instanceof Error && e.message.includes("409")) {
         headSha = await this.getHeadSha();
         treeSha = await this.getTreeSha(headSha);
-        commitSha = await this.createCommitAndUpdateRef(blobs, treeSha, headSha, postData);
+        commitSha = await this.createCommitAndUpdateRef(
+          blobs,
+          treeSha,
+          headSha,
+          `Publish: ${postData.title}`
+        );
       } else {
         throw e;
       }
     }
     const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
     return { commitSha, postUrl };
+  }
+  async publishTextFile(repoPath, content, message) {
+    let headSha = await this.getHeadSha();
+    let treeSha = await this.getTreeSha(headSha);
+    const blob = await this.apiPost(
+      `/repos/${this.owner}/${this.repo}/git/blobs`,
+      { content, encoding: "utf-8" }
+    );
+    const blobs = [
+      {
+        path: repoPath,
+        sha: blob.sha,
+        mode: "100644",
+        type: "blob"
+      }
+    ];
+    try {
+      return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("409")) {
+        headSha = await this.getHeadSha();
+        treeSha = await this.getTreeSha(headSha);
+        return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
+      }
+      throw e;
+    }
   }
   async getHeadSha() {
     const resp = await this.apiGet(
@@ -270,7 +310,7 @@ var GitHubService = class {
     }
     return blobs;
   }
-  async createCommitAndUpdateRef(blobs, baseTreeSha, parentCommitSha, postData) {
+  async createCommitAndUpdateRef(blobs, baseTreeSha, parentCommitSha, message) {
     const tree = await this.apiPost(
       `/repos/${this.owner}/${this.repo}/git/trees`,
       {
@@ -281,7 +321,7 @@ var GitHubService = class {
     const commit = await this.apiPost(
       `/repos/${this.owner}/${this.repo}/git/commits`,
       {
-        message: `Publish: ${postData.title}`,
+        message,
         tree: tree.sha,
         parents: [parentCommitSha]
       }
@@ -367,6 +407,14 @@ var SettingsTab = class extends import_obsidian3.PluginSettingTab {
       this.plugin.settings.postsFolder = value;
       await this.plugin.saveSettings();
     }));
+    new import_obsidian3.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText((text) => text.setPlaceholder("Personal/Blog/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
+      this.plugin.settings.themeFilePath = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(containerEl).setName("Theme repo path").setDesc("Path in GitHub repo for committed theme settings").addText((text) => text.setPlaceholder("content/settings/theme.md").setValue(this.plugin.settings.themeRepoPath).onChange(async (value) => {
+      this.plugin.settings.themeRepoPath = value;
+      await this.plugin.saveSettings();
+    }));
     new import_obsidian3.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText((text) => text.setPlaceholder("https://amishrobot.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
       this.plugin.settings.siteUrl = value;
       await this.plugin.saveSettings();
@@ -400,14 +448,26 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
         return true;
       }
     });
+    this.addCommand({
+      id: "publish-blog-theme-settings",
+      name: "Publish Blog Theme Settings",
+      callback: async () => {
+        const themeFile = this.app.vault.getAbstractFileByPath(this.settings.themeFilePath);
+        if (!(themeFile instanceof import_obsidian4.TFile)) {
+          new import_obsidian4.Notice(`Theme file not found: ${this.settings.themeFilePath}`);
+          return;
+        }
+        await this.publishThemeFile(themeFile);
+      }
+    });
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (!(file instanceof import_obsidian4.TFile))
           return;
         const folder = this.settings.postsFolder.replace(/\/$/, "");
-        if (!file.path.startsWith(folder + "/"))
-          return;
-        if (!file.path.endsWith(".md"))
+        const isPost = file.path.startsWith(folder + "/") && file.path.endsWith(".md");
+        const isThemeFile = file.path === this.settings.themeFilePath;
+        if (!isPost && !isThemeFile)
           return;
         const guardTimestamp = this.writebackGuard.get(file.path);
         if (guardTimestamp && Date.now() - guardTimestamp < 5e3) {
@@ -419,6 +479,10 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
           clearTimeout(existing);
         const timeout = setTimeout(() => {
           this.publishTimeouts.delete(file.path);
+          if (isThemeFile) {
+            this.publishThemeFile(file);
+            return;
+          }
           this.checkAndPublish(file);
         }, 2e3);
         this.publishTimeouts.set(file.path, timeout);
@@ -513,6 +577,45 @@ ${result.postUrl}`);
       new import_obsidian4.Notice(`Unpublish failed: ${msg}`, 1e4);
       console.error("Blog Publisher error:", e);
     }
+  }
+  async publishThemeFile(file) {
+    if (!this.settings.githubToken) {
+      new import_obsidian4.Notice("Blog Publisher: No GitHub token configured. Check plugin settings.");
+      return;
+    }
+    const publishingNotice = new import_obsidian4.Notice("Publishing theme settings...", 0);
+    try {
+      const content = await this.app.vault.read(file);
+      const contentHash = await this.hashText(content);
+      if (this.settings.themePublishedHash === contentHash) {
+        publishingNotice.hide();
+        new import_obsidian4.Notice("Theme settings unchanged; skipping publish.");
+        return;
+      }
+      const githubService = new GitHubService(this.app, this.settings);
+      const commitSha = await githubService.publishTextFile(
+        this.settings.themeRepoPath,
+        content,
+        "Publish: theme settings"
+      );
+      this.settings.themePublishedHash = contentHash;
+      this.settings.themePublishedCommit = commitSha;
+      await this.saveSettings();
+      publishingNotice.hide();
+      new import_obsidian4.Notice(`Published theme settings (${commitSha.slice(0, 7)}).`);
+    } catch (e) {
+      publishingNotice.hide();
+      const msg = e instanceof Error ? e.message : String(e);
+      new import_obsidian4.Notice(`Theme publish failed: ${msg}`, 1e4);
+      console.error("Blog Publisher theme publish error:", e);
+    }
+  }
+  async hashText(content) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(content);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
   async writeBackFrontmatter(file, updates) {
     this.writebackGuard.set(file.path, Date.now());

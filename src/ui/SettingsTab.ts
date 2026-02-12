@@ -59,6 +59,28 @@ export class SettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+            .setName('Theme settings file')
+            .setDesc('Vault markdown file to publish when theme settings change')
+            .addText(text => text
+                .setPlaceholder('Personal/Blog/settings/theme.md')
+                .setValue(this.plugin.settings.themeFilePath)
+                .onChange(async (value) => {
+                    this.plugin.settings.themeFilePath = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Theme repo path')
+            .setDesc('Path in GitHub repo for committed theme settings')
+            .addText(text => text
+                .setPlaceholder('content/settings/theme.md')
+                .setValue(this.plugin.settings.themeRepoPath)
+                .onChange(async (value) => {
+                    this.plugin.settings.themeRepoPath = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName('Site URL')
             .setDesc('Blog URL for success notice links')
             .addText(text => text

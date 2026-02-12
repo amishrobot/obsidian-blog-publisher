@@ -32,13 +32,28 @@ export default class BlogPublisherPlugin extends Plugin {
             },
         });
 
+        this.addCommand({
+            id: 'publish-blog-theme-settings',
+            name: 'Publish Blog Theme Settings',
+            callback: async () => {
+                const themeFile = this.app.vault.getAbstractFileByPath(this.settings.themeFilePath);
+                if (!(themeFile instanceof TFile)) {
+                    new Notice(`Theme file not found: ${this.settings.themeFilePath}`);
+                    return;
+                }
+                await this.publishThemeFile(themeFile);
+            },
+        });
+
         // Watch for file modifications in posts folder
         this.registerEvent(
             this.app.vault.on('modify', (file) => {
                 if (!(file instanceof TFile)) return;
                 const folder = this.settings.postsFolder.replace(/\/$/, '');
-                if (!file.path.startsWith(folder + '/')) return;
-                if (!file.path.endsWith('.md')) return;
+                const isPost =
+                    file.path.startsWith(folder + '/') && file.path.endsWith('.md');
+                const isThemeFile = file.path === this.settings.themeFilePath;
+                if (!isPost && !isThemeFile) return;
 
                 // Writeback guard: skip if we recently wrote to this file
                 const guardTimestamp = this.writebackGuard.get(file.path);
@@ -53,6 +68,10 @@ export default class BlogPublisherPlugin extends Plugin {
 
                 const timeout = setTimeout(() => {
                     this.publishTimeouts.delete(file.path);
+                    if (isThemeFile) {
+                        this.publishThemeFile(file);
+                        return;
+                    }
                     this.checkAndPublish(file);
                 }, 2000);
                 this.publishTimeouts.set(file.path, timeout);
@@ -172,6 +191,52 @@ export default class BlogPublisherPlugin extends Plugin {
             new Notice(`Unpublish failed: ${msg}`, 10000);
             console.error('Blog Publisher error:', e);
         }
+    }
+
+    private async publishThemeFile(file: TFile) {
+        if (!this.settings.githubToken) {
+            new Notice('Blog Publisher: No GitHub token configured. Check plugin settings.');
+            return;
+        }
+
+        const publishingNotice = new Notice('Publishing theme settings...', 0);
+
+        try {
+            const content = await this.app.vault.read(file);
+            const contentHash = await this.hashText(content);
+            if (this.settings.themePublishedHash === contentHash) {
+                publishingNotice.hide();
+                new Notice('Theme settings unchanged; skipping publish.');
+                return;
+            }
+
+            const githubService = new GitHubService(this.app, this.settings);
+            const commitSha = await githubService.publishTextFile(
+                this.settings.themeRepoPath,
+                content,
+                'Publish: theme settings'
+            );
+
+            this.settings.themePublishedHash = contentHash;
+            this.settings.themePublishedCommit = commitSha;
+            await this.saveSettings();
+
+            publishingNotice.hide();
+            new Notice(`Published theme settings (${commitSha.slice(0, 7)}).`);
+        } catch (e: unknown) {
+            publishingNotice.hide();
+            const msg = e instanceof Error ? e.message : String(e);
+            new Notice(`Theme publish failed: ${msg}`, 10000);
+            console.error('Blog Publisher theme publish error:', e);
+        }
+    }
+
+    private async hashText(content: string): Promise<string> {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(content);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
     }
 
     private async writeBackFrontmatter(

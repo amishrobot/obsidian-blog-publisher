@@ -1,13 +1,18 @@
 {
   "name": "obsidian-blog-publisher",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Publish blog posts from Obsidian to GitHub/Vercel",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production"
   },
-  "keywords": ["obsidian", "blog", "publish", "github"],
+  "keywords": [
+    "obsidian",
+    "blog",
+    "publish",
+    "github"
+  ],
   "author": "Josh Penrod",
   "license": "MIT",
   "devDependencies": {

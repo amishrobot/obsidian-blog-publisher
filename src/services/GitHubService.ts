@@ -90,13 +90,23 @@ export class GitHubService {
         // Step 3-6: Create tree, commit, update ref (with 409 retry)
         let commitSha: string;
         try {
-            commitSha = await this.createCommitAndUpdateRef(blobs, treeSha, headSha, postData);
+            commitSha = await this.createCommitAndUpdateRef(
+                blobs,
+                treeSha,
+                headSha,
+                `Publish: ${postData.title}`
+            );
         } catch (e: unknown) {
             if (e instanceof Error && e.message.includes('409')) {
                 // Retry once: refetch head, rebuild
                 headSha = await this.getHeadSha();
                 treeSha = await this.getTreeSha(headSha);
-                commitSha = await this.createCommitAndUpdateRef(blobs, treeSha, headSha, postData);
+                commitSha = await this.createCommitAndUpdateRef(
+                    blobs,
+                    treeSha,
+                    headSha,
+                    `Publish: ${postData.title}`
+                );
             } else {
                 throw e;
             }
@@ -104,6 +114,40 @@ export class GitHubService {
 
         const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
         return { commitSha, postUrl };
+    }
+
+    async publishTextFile(
+        repoPath: string,
+        content: string,
+        message: string
+    ): Promise<string> {
+        let headSha = await this.getHeadSha();
+        let treeSha = await this.getTreeSha(headSha);
+
+        const blob = await this.apiPost(
+            `/repos/${this.owner}/${this.repo}/git/blobs`,
+            { content, encoding: 'utf-8' }
+        );
+
+        const blobs: BlobRef[] = [
+            {
+                path: repoPath,
+                sha: blob.sha,
+                mode: '100644',
+                type: 'blob',
+            },
+        ];
+
+        try {
+            return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
+        } catch (e: unknown) {
+            if (e instanceof Error && e.message.includes('409')) {
+                headSha = await this.getHeadSha();
+                treeSha = await this.getTreeSha(headSha);
+                return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
+            }
+            throw e;
+        }
     }
 
     private async getHeadSha(): Promise<string> {
@@ -163,7 +207,7 @@ export class GitHubService {
         blobs: BlobRef[],
         baseTreeSha: string,
         parentCommitSha: string,
-        postData: PostData
+        message: string
     ): Promise<string> {
         // Create tree
         const tree = await this.apiPost(
@@ -178,7 +222,7 @@ export class GitHubService {
         const commit = await this.apiPost(
             `/repos/${this.owner}/${this.repo}/git/commits`,
             {
-                message: `Publish: ${postData.title}`,
+                message,
                 tree: tree.sha,
                 parents: [parentCommitSha],
             }
