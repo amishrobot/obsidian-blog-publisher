@@ -25,30 +25,15 @@ export class GitHubService {
     }
 
     async unpublish(filePaths: string[], title: string): Promise<string> {
-        let headSha = await this.getHeadSha();
-        let treeSha = await this.getTreeSha(headSha);
-
         const deletions = filePaths.map(path => ({
             path,
             mode: '100644' as const,
             type: 'blob' as const,
             sha: null,
         }));
-
-        let commitSha: string;
-        try {
-            commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
-        } catch (e: unknown) {
-            if (this.shouldRetryRefUpdate(e)) {
-                headSha = await this.getHeadSha();
-                treeSha = await this.getTreeSha(headSha);
-                commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
-            } else {
-                throw e;
-            }
-        }
-
-        return commitSha;
+        return this.withRefRetry((headSha, treeSha) =>
+            this.deleteAndUpdateRef(deletions, treeSha, headSha, title)
+        );
     }
 
     private async deleteAndUpdateRef(
@@ -80,37 +65,16 @@ export class GitHubService {
     }
 
     async publish(postData: PostData): Promise<PublishResult> {
-        // Step 1: Get current head ref
-        let headSha = await this.getHeadSha();
-        let treeSha = await this.getTreeSha(headSha);
-
         // Step 2: Create blobs for all files
         const blobs = await this.createBlobs(postData);
-
-        // Step 3-6: Create tree, commit, update ref (with 409 retry)
-        let commitSha: string;
-        try {
-            commitSha = await this.createCommitAndUpdateRef(
+        const commitSha = await this.withRefRetry((headSha, treeSha) =>
+            this.createCommitAndUpdateRef(
                 blobs,
                 treeSha,
                 headSha,
                 `Publish: ${postData.title}`
-            );
-        } catch (e: unknown) {
-            if (this.shouldRetryRefUpdate(e)) {
-                // Retry once: refetch head, rebuild
-                headSha = await this.getHeadSha();
-                treeSha = await this.getTreeSha(headSha);
-                commitSha = await this.createCommitAndUpdateRef(
-                    blobs,
-                    treeSha,
-                    headSha,
-                    `Publish: ${postData.title}`
-                );
-            } else {
-                throw e;
-            }
-        }
+            )
+        );
 
         const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
         return { commitSha, postUrl };
@@ -121,9 +85,6 @@ export class GitHubService {
         content: string,
         message: string
     ): Promise<string> {
-        let headSha = await this.getHeadSha();
-        let treeSha = await this.getTreeSha(headSha);
-
         const blob = await this.apiPost(
             `/repos/${this.owner}/${this.repo}/git/blobs`,
             { content, encoding: 'utf-8' }
@@ -138,16 +99,9 @@ export class GitHubService {
             },
         ];
 
-        try {
-            return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
-        } catch (e: unknown) {
-            if (this.shouldRetryRefUpdate(e)) {
-                headSha = await this.getHeadSha();
-                treeSha = await this.getTreeSha(headSha);
-                return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
-            }
-            throw e;
-        }
+        return this.withRefRetry((headSha, treeSha) =>
+            this.createCommitAndUpdateRef(blobs, treeSha, headSha, message)
+        );
     }
 
     private async getHeadSha(): Promise<string> {
@@ -289,6 +243,34 @@ export class GitHubService {
             error.message.includes('Reference update failed') ||
             error.message.includes('Update is not a fast forward')
         );
+    }
+
+    private async withRefRetry(
+        operation: (headSha: string, treeSha: string) => Promise<string>
+    ): Promise<string> {
+        const maxAttempts = 5;
+        let lastError: unknown = null;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const headSha = await this.getHeadSha();
+            const treeSha = await this.getTreeSha(headSha);
+
+            try {
+                return await operation(headSha, treeSha);
+            } catch (error: unknown) {
+                lastError = error;
+                if (!this.shouldRetryRefUpdate(error) || attempt === maxAttempts) {
+                    throw error;
+                }
+                await this.sleep(attempt * 250);
+            }
+        }
+
+        throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    }
+
+    private async sleep(ms: number): Promise<void> {
+        await new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     private arrayBufferToBase64(buffer: ArrayBuffer): string {

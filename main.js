@@ -170,27 +170,15 @@ var GitHubService = class {
     this.repo = parts[1];
   }
   async unpublish(filePaths, title) {
-    let headSha = await this.getHeadSha();
-    let treeSha = await this.getTreeSha(headSha);
     const deletions = filePaths.map((path) => ({
       path,
       mode: "100644",
       type: "blob",
       sha: null
     }));
-    let commitSha;
-    try {
-      commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
-    } catch (e) {
-      if (this.shouldRetryRefUpdate(e)) {
-        headSha = await this.getHeadSha();
-        treeSha = await this.getTreeSha(headSha);
-        commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
-      } else {
-        throw e;
-      }
-    }
-    return commitSha;
+    return this.withRefRetry(
+      (headSha, treeSha) => this.deleteAndUpdateRef(deletions, treeSha, headSha, title)
+    );
   }
   async deleteAndUpdateRef(deletions, baseTreeSha, parentCommitSha, title) {
     const tree = await this.apiPost(
@@ -212,37 +200,19 @@ var GitHubService = class {
     return commit.sha;
   }
   async publish(postData) {
-    let headSha = await this.getHeadSha();
-    let treeSha = await this.getTreeSha(headSha);
     const blobs = await this.createBlobs(postData);
-    let commitSha;
-    try {
-      commitSha = await this.createCommitAndUpdateRef(
+    const commitSha = await this.withRefRetry(
+      (headSha, treeSha) => this.createCommitAndUpdateRef(
         blobs,
         treeSha,
         headSha,
         `Publish: ${postData.title}`
-      );
-    } catch (e) {
-      if (this.shouldRetryRefUpdate(e)) {
-        headSha = await this.getHeadSha();
-        treeSha = await this.getTreeSha(headSha);
-        commitSha = await this.createCommitAndUpdateRef(
-          blobs,
-          treeSha,
-          headSha,
-          `Publish: ${postData.title}`
-        );
-      } else {
-        throw e;
-      }
-    }
+      )
+    );
     const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
     return { commitSha, postUrl };
   }
   async publishTextFile(repoPath, content, message) {
-    let headSha = await this.getHeadSha();
-    let treeSha = await this.getTreeSha(headSha);
     const blob = await this.apiPost(
       `/repos/${this.owner}/${this.repo}/git/blobs`,
       { content, encoding: "utf-8" }
@@ -255,16 +225,9 @@ var GitHubService = class {
         type: "blob"
       }
     ];
-    try {
-      return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
-    } catch (e) {
-      if (this.shouldRetryRefUpdate(e)) {
-        headSha = await this.getHeadSha();
-        treeSha = await this.getTreeSha(headSha);
-        return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
-      }
-      throw e;
-    }
+    return this.withRefRetry(
+      (headSha, treeSha) => this.createCommitAndUpdateRef(blobs, treeSha, headSha, message)
+    );
   }
   async getHeadSha() {
     const resp = await this.apiGet(
@@ -376,6 +339,27 @@ var GitHubService = class {
       return false;
     return error.message.includes("409") || error.message.includes("422") || error.message.includes("Reference update failed") || error.message.includes("Update is not a fast forward");
   }
+  async withRefRetry(operation) {
+    const maxAttempts = 5;
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const headSha = await this.getHeadSha();
+      const treeSha = await this.getTreeSha(headSha);
+      try {
+        return await operation(headSha, treeSha);
+      } catch (error) {
+        lastError = error;
+        if (!this.shouldRetryRefUpdate(error) || attempt === maxAttempts) {
+          throw error;
+        }
+        await this.sleep(attempt * 250);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+  async sleep(ms) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
   arrayBufferToBase64(buffer) {
     const bytes = new Uint8Array(buffer);
     let binary = "";
@@ -433,6 +417,7 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
     super(...arguments);
     this.publishTimeouts = /* @__PURE__ */ new Map();
     this.writebackGuard = /* @__PURE__ */ new Map();
+    this.publishQueue = Promise.resolve();
   }
   async onload() {
     console.log("Loading Blog Publisher plugin");
@@ -448,7 +433,7 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
           return false;
         }
         if (!checking) {
-          this.publishFile(file);
+          this.enqueuePublish(() => this.publishFile(file));
         }
         return true;
       }
@@ -462,7 +447,7 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
           new import_obsidian4.Notice(`Theme file not found: ${this.settings.themeFilePath}`);
           return;
         }
-        await this.publishThemeFile(themeFile);
+        this.enqueuePublish(() => this.publishThemeFile(themeFile));
       }
     });
     this.registerEvent(
@@ -485,10 +470,10 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
         const timeout = setTimeout(() => {
           this.publishTimeouts.delete(file.path);
           if (isThemeFile) {
-            this.publishThemeFile(file);
+            this.enqueuePublish(() => this.publishThemeFile(file));
             return;
           }
-          this.checkAndPublish(file);
+          this.enqueuePublish(() => this.checkAndPublish(file));
         }, 2e3);
         this.publishTimeouts.set(file.path, timeout);
       })
@@ -516,6 +501,11 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
     } else if (cache.frontmatter.status === "draft" && cache.frontmatter.publishedCommit) {
       await this.unpublishFile(file);
     }
+  }
+  enqueuePublish(task) {
+    this.publishQueue = this.publishQueue.then(task).catch((error) => {
+      console.error("Blog Publisher queued task failed:", error);
+    });
   }
   async publishFile(file) {
     var _a, _b;

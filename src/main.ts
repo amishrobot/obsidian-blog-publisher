@@ -8,6 +8,7 @@ export default class BlogPublisherPlugin extends Plugin {
     settings: PluginSettings;
     private publishTimeouts: Map<string, NodeJS.Timeout> = new Map();
     private writebackGuard: Map<string, number> = new Map();
+    private publishQueue: Promise<void> = Promise.resolve();
 
     async onload() {
         console.log('Loading Blog Publisher plugin');
@@ -26,7 +27,7 @@ export default class BlogPublisherPlugin extends Plugin {
                     return false;
                 }
                 if (!checking) {
-                    this.publishFile(file);
+                    this.enqueuePublish(() => this.publishFile(file));
                 }
                 return true;
             },
@@ -41,7 +42,7 @@ export default class BlogPublisherPlugin extends Plugin {
                     new Notice(`Theme file not found: ${this.settings.themeFilePath}`);
                     return;
                 }
-                await this.publishThemeFile(themeFile);
+                this.enqueuePublish(() => this.publishThemeFile(themeFile));
             },
         });
 
@@ -69,10 +70,10 @@ export default class BlogPublisherPlugin extends Plugin {
                 const timeout = setTimeout(() => {
                     this.publishTimeouts.delete(file.path);
                     if (isThemeFile) {
-                        this.publishThemeFile(file);
+                        this.enqueuePublish(() => this.publishThemeFile(file));
                         return;
                     }
-                    this.checkAndPublish(file);
+                    this.enqueuePublish(() => this.checkAndPublish(file));
                 }, 2000);
                 this.publishTimeouts.set(file.path, timeout);
             })
@@ -105,6 +106,14 @@ export default class BlogPublisherPlugin extends Plugin {
         } else if (cache.frontmatter.status === 'draft' && cache.frontmatter.publishedCommit) {
             await this.unpublishFile(file);
         }
+    }
+
+    private enqueuePublish(task: () => Promise<void>) {
+        this.publishQueue = this.publishQueue
+            .then(task)
+            .catch((error) => {
+                console.error('Blog Publisher queued task failed:', error);
+            });
     }
 
     private async publishFile(file: TFile) {
