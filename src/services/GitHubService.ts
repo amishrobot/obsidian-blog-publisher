@@ -235,6 +235,26 @@ export class GitHubService {
         return this.apiRequest('PATCH', path, body);
     }
 
+    async fileContentEquals(repoPath: string, expectedContent: string): Promise<boolean> {
+        try {
+            const encodedPath = repoPath
+                .split('/')
+                .map((part) => encodeURIComponent(part))
+                .join('/');
+            const resp = await this.apiGet(
+                `/repos/${this.owner}/${this.repo}/contents/${encodedPath}?ref=${this.settings.branch}`
+            );
+            const contentBase64 = String(resp.content || '').replace(/\n/g, '');
+            const actualContent = atob(contentBase64);
+            return actualContent === expectedContent;
+        } catch (error: unknown) {
+            if (error instanceof Error && error.message.includes('404')) {
+                return false;
+            }
+            throw error;
+        }
+    }
+
     private shouldRetryRefUpdate(error: unknown): boolean {
         if (!(error instanceof Error)) return false;
         return (

@@ -233,8 +233,34 @@ export default class BlogPublisherPlugin extends Plugin {
             publishingNotice.hide();
             new Notice(`Published theme settings (${commitSha.slice(0, 7)}).`);
         } catch (e: unknown) {
-            publishingNotice.hide();
             const msg = e instanceof Error ? e.message : String(e);
+            const content = await this.app.vault.read(file);
+            const contentHash = await this.hashText(content);
+
+            // If GitHub accepted the content in another racing commit, treat as success.
+            if (
+                (msg.includes('422') || msg.includes('409')) &&
+                this.settings.githubToken
+            ) {
+                try {
+                    const githubService = new GitHubService(this.app, this.settings);
+                    const matches = await githubService.fileContentEquals(
+                        this.settings.themeRepoPath,
+                        content
+                    );
+                    if (matches) {
+                        this.settings.themePublishedHash = contentHash;
+                        await this.saveSettings();
+                        publishingNotice.hide();
+                        new Notice('Theme settings already published.');
+                        return;
+                    }
+                } catch (verifyError) {
+                    console.error('Theme publish verification failed:', verifyError);
+                }
+            }
+
+            publishingNotice.hide();
             new Notice(`Theme publish failed: ${msg}`, 10000);
             console.error('Blog Publisher theme publish error:', e);
         }

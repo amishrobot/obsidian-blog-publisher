@@ -334,6 +334,22 @@ var GitHubService = class {
   async apiPatch(path, body) {
     return this.apiRequest("PATCH", path, body);
   }
+  async fileContentEquals(repoPath, expectedContent) {
+    try {
+      const encodedPath = repoPath.split("/").map((part) => encodeURIComponent(part)).join("/");
+      const resp = await this.apiGet(
+        `/repos/${this.owner}/${this.repo}/contents/${encodedPath}?ref=${this.settings.branch}`
+      );
+      const contentBase64 = String(resp.content || "").replace(/\n/g, "");
+      const actualContent = atob(contentBase64);
+      return actualContent === expectedContent;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("404")) {
+        return false;
+      }
+      throw error;
+    }
+  }
   shouldRetryRefUpdate(error) {
     if (!(error instanceof Error))
       return false;
@@ -599,8 +615,28 @@ ${result.postUrl}`);
       publishingNotice.hide();
       new import_obsidian4.Notice(`Published theme settings (${commitSha.slice(0, 7)}).`);
     } catch (e) {
-      publishingNotice.hide();
       const msg = e instanceof Error ? e.message : String(e);
+      const content = await this.app.vault.read(file);
+      const contentHash = await this.hashText(content);
+      if ((msg.includes("422") || msg.includes("409")) && this.settings.githubToken) {
+        try {
+          const githubService = new GitHubService(this.app, this.settings);
+          const matches = await githubService.fileContentEquals(
+            this.settings.themeRepoPath,
+            content
+          );
+          if (matches) {
+            this.settings.themePublishedHash = contentHash;
+            await this.saveSettings();
+            publishingNotice.hide();
+            new import_obsidian4.Notice("Theme settings already published.");
+            return;
+          }
+        } catch (verifyError) {
+          console.error("Theme publish verification failed:", verifyError);
+        }
+      }
+      publishingNotice.hide();
       new import_obsidian4.Notice(`Theme publish failed: ${msg}`, 1e4);
       console.error("Blog Publisher theme publish error:", e);
     }
