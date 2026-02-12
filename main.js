@@ -165,6 +165,56 @@ var GitHubService = class {
     this.owner = parts[0];
     this.repo = parts[1];
   }
+  async unpublish(filePaths, title) {
+    let headSha = await this.getHeadSha();
+    let treeSha = await this.getTreeSha(headSha);
+    const deletions = filePaths.map((path) => ({
+      path,
+      mode: "100644",
+      type: "blob",
+      sha: null
+    }));
+    let commitSha;
+    try {
+      commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("409")) {
+        headSha = await this.getHeadSha();
+        treeSha = await this.getTreeSha(headSha);
+        commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
+      } else {
+        throw e;
+      }
+    }
+    return commitSha;
+  }
+  async deleteAndUpdateRef(deletions, baseTreeSha, parentCommitSha, title) {
+    const tree = await this.apiPost(
+      `/repos/${this.owner}/${this.repo}/git/trees`,
+      { base_tree: baseTreeSha, tree: deletions }
+    );
+    const commit = await this.apiPost(
+      `/repos/${this.owner}/${this.repo}/git/commits`,
+      {
+        message: `Unpublish: ${title}`,
+        tree: tree.sha,
+        parents: [parentCommitSha]
+      }
+    );
+    const resp = await (0, import_obsidian2.requestUrl)({
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+      method: "PATCH",
+      headers: this.headers(),
+      body: JSON.stringify({ sha: commit.sha })
+    });
+    if (resp.status === 409) {
+      throw new Error("409 conflict updating ref");
+    }
+    if (resp.status < 200 || resp.status >= 300) {
+      throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
+    }
+    return commit.sha;
+  }
   async publish(postData) {
     let headSha = await this.getHeadSha();
     let treeSha = await this.getTreeSha(headSha);
@@ -400,9 +450,11 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
     const cache = this.app.metadataCache.getFileCache(file);
     if (!(cache == null ? void 0 : cache.frontmatter))
       return;
-    if (cache.frontmatter.status !== "publish")
-      return;
-    await this.publishFile(file);
+    if (cache.frontmatter.status === "publish") {
+      await this.publishFile(file);
+    } else if (cache.frontmatter.status === "draft" && cache.frontmatter.publishedCommit) {
+      await this.unpublishFile(file);
+    }
   }
   async publishFile(file) {
     var _a, _b;
@@ -444,6 +496,32 @@ ${result.postUrl}`);
       console.error("Blog Publisher error:", e);
     }
   }
+  async unpublishFile(file) {
+    if (!this.settings.githubToken) {
+      new import_obsidian4.Notice("Blog Publisher: No GitHub token configured. Check plugin settings.");
+      return;
+    }
+    const unpublishingNotice = new import_obsidian4.Notice("Unpublishing...", 0);
+    try {
+      const postService = new PostService(this.app, this.settings);
+      const postData = await postService.buildPostData(file);
+      const filePaths = [postData.repoPostPath, ...postData.images.map((img) => img.repoPath)];
+      const githubService = new GitHubService(this.app, this.settings);
+      await githubService.unpublish(filePaths, postData.title);
+      await this.writeBackFrontmatter(file, {
+        publishedAt: "",
+        publishedCommit: "",
+        publishedHash: ""
+      });
+      unpublishingNotice.hide();
+      new import_obsidian4.Notice(`Unpublished: ${postData.title}`);
+    } catch (e) {
+      unpublishingNotice.hide();
+      const msg = e instanceof Error ? e.message : String(e);
+      new import_obsidian4.Notice(`Unpublish failed: ${msg}`, 1e4);
+      console.error("Blog Publisher error:", e);
+    }
+  }
   async writeBackFrontmatter(file, updates) {
     this.writebackGuard.set(file.path, Date.now());
     setTimeout(() => {
@@ -454,7 +532,11 @@ ${result.postUrl}`);
     }, 5e3);
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       for (const [key, value] of Object.entries(updates)) {
-        fm[key] = value;
+        if (value === "") {
+          delete fm[key];
+        } else {
+          fm[key] = value;
+        }
       }
     });
   }

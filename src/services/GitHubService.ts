@@ -24,6 +24,70 @@ export class GitHubService {
         this.repo = parts[1];
     }
 
+    async unpublish(filePaths: string[], title: string): Promise<string> {
+        let headSha = await this.getHeadSha();
+        let treeSha = await this.getTreeSha(headSha);
+
+        const deletions = filePaths.map(path => ({
+            path,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            sha: null,
+        }));
+
+        let commitSha: string;
+        try {
+            commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
+        } catch (e: unknown) {
+            if (e instanceof Error && e.message.includes('409')) {
+                headSha = await this.getHeadSha();
+                treeSha = await this.getTreeSha(headSha);
+                commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
+            } else {
+                throw e;
+            }
+        }
+
+        return commitSha;
+    }
+
+    private async deleteAndUpdateRef(
+        deletions: { path: string; mode: '100644'; type: 'blob'; sha: null }[],
+        baseTreeSha: string,
+        parentCommitSha: string,
+        title: string
+    ): Promise<string> {
+        const tree = await this.apiPost(
+            `/repos/${this.owner}/${this.repo}/git/trees`,
+            { base_tree: baseTreeSha, tree: deletions }
+        );
+
+        const commit = await this.apiPost(
+            `/repos/${this.owner}/${this.repo}/git/commits`,
+            {
+                message: `Unpublish: ${title}`,
+                tree: tree.sha,
+                parents: [parentCommitSha],
+            }
+        );
+
+        const resp = await requestUrl({
+            url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
+            method: 'PATCH',
+            headers: this.headers(),
+            body: JSON.stringify({ sha: commit.sha }),
+        });
+
+        if (resp.status === 409) {
+            throw new Error('409 conflict updating ref');
+        }
+        if (resp.status < 200 || resp.status >= 300) {
+            throw new Error(`GitHub API error ${resp.status}: ${JSON.stringify(resp.json)}`);
+        }
+
+        return commit.sha;
+    }
+
     async publish(postData: PostData): Promise<PublishResult> {
         // Step 1: Get current head ref
         let headSha = await this.getHeadSha();

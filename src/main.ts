@@ -80,9 +80,12 @@ export default class BlogPublisherPlugin extends Plugin {
     private async checkAndPublish(file: TFile) {
         const cache = this.app.metadataCache.getFileCache(file);
         if (!cache?.frontmatter) return;
-        if (cache.frontmatter.status !== 'publish') return;
 
-        await this.publishFile(file);
+        if (cache.frontmatter.status === 'publish') {
+            await this.publishFile(file);
+        } else if (cache.frontmatter.status === 'draft' && cache.frontmatter.publishedCommit) {
+            await this.unpublishFile(file);
+        }
     }
 
     private async publishFile(file: TFile) {
@@ -135,6 +138,42 @@ export default class BlogPublisherPlugin extends Plugin {
         }
     }
 
+    private async unpublishFile(file: TFile) {
+        if (!this.settings.githubToken) {
+            new Notice('Blog Publisher: No GitHub token configured. Check plugin settings.');
+            return;
+        }
+
+        const unpublishingNotice = new Notice('Unpublishing...', 0);
+
+        try {
+            const postService = new PostService(this.app, this.settings);
+            const postData = await postService.buildPostData(file);
+
+            // Collect all repo paths to delete
+            const filePaths = [postData.repoPostPath, ...postData.images.map(img => img.repoPath)];
+
+            const githubService = new GitHubService(this.app, this.settings);
+            await githubService.unpublish(filePaths, postData.title);
+
+            // Clear published metadata
+            await this.writeBackFrontmatter(file, {
+                publishedAt: '',
+                publishedCommit: '',
+                publishedHash: '',
+            });
+
+            unpublishingNotice.hide();
+            new Notice(`Unpublished: ${postData.title}`);
+
+        } catch (e: unknown) {
+            unpublishingNotice.hide();
+            const msg = e instanceof Error ? e.message : String(e);
+            new Notice(`Unpublish failed: ${msg}`, 10000);
+            console.error('Blog Publisher error:', e);
+        }
+    }
+
     private async writeBackFrontmatter(
         file: TFile,
         updates: Record<string, string>
@@ -152,7 +191,11 @@ export default class BlogPublisherPlugin extends Plugin {
 
         await this.app.fileManager.processFrontMatter(file, (fm) => {
             for (const [key, value] of Object.entries(updates)) {
-                fm[key] = value;
+                if (value === '') {
+                    delete fm[key];
+                } else {
+                    fm[key] = value;
+                }
             }
         });
     }
