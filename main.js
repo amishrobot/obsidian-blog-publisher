@@ -434,6 +434,7 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
     this.publishTimeouts = /* @__PURE__ */ new Map();
     this.writebackGuard = /* @__PURE__ */ new Map();
     this.publishQueue = Promise.resolve();
+    this.themeReconcileIntervalMs = 3e4;
   }
   async onload() {
     console.log("Loading Blog Publisher plugin");
@@ -494,6 +495,17 @@ var BlogPublisherPlugin = class extends import_obsidian4.Plugin {
         this.publishTimeouts.set(file.path, timeout);
       })
     );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.enqueuePublish(() => this.reconcileThemeSettings());
+      })
+    );
+    this.registerInterval(
+      window.setInterval(() => {
+        this.enqueuePublish(() => this.reconcileThemeSettings());
+      }, this.themeReconcileIntervalMs)
+    );
+    this.enqueuePublish(() => this.reconcileThemeSettings());
   }
   async onunload() {
     console.log("Unloading Blog Publisher plugin");
@@ -639,6 +651,22 @@ ${result.postUrl}`);
       publishingNotice.hide();
       new import_obsidian4.Notice(`Theme publish failed: ${msg}`, 1e4);
       console.error("Blog Publisher theme publish error:", e);
+    }
+  }
+  async reconcileThemeSettings() {
+    if (!this.settings.githubToken)
+      return;
+    const themeFile = this.app.vault.getAbstractFileByPath(this.settings.themeFilePath);
+    if (!(themeFile instanceof import_obsidian4.TFile))
+      return;
+    try {
+      const content = await this.app.vault.read(themeFile);
+      const contentHash = await this.hashText(content);
+      if (this.settings.themePublishedHash === contentHash)
+        return;
+      await this.publishThemeFile(themeFile);
+    } catch (e) {
+      console.error("Theme reconcile failed:", e);
     }
   }
   async hashText(content) {

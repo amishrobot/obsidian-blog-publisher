@@ -9,6 +9,7 @@ export default class BlogPublisherPlugin extends Plugin {
     private publishTimeouts: Map<string, NodeJS.Timeout> = new Map();
     private writebackGuard: Map<string, number> = new Map();
     private publishQueue: Promise<void> = Promise.resolve();
+    private readonly themeReconcileIntervalMs = 30000;
 
     async onload() {
         console.log('Loading Blog Publisher plugin');
@@ -78,6 +79,19 @@ export default class BlogPublisherPlugin extends Plugin {
                 this.publishTimeouts.set(file.path, timeout);
             })
         );
+
+        // Reconcile theme settings in case file-system events were missed.
+        this.registerEvent(
+            this.app.workspace.on('layout-change', () => {
+                this.enqueuePublish(() => this.reconcileThemeSettings());
+            })
+        );
+        this.registerInterval(
+            window.setInterval(() => {
+                this.enqueuePublish(() => this.reconcileThemeSettings());
+            }, this.themeReconcileIntervalMs)
+        );
+        this.enqueuePublish(() => this.reconcileThemeSettings());
     }
 
     async onunload() {
@@ -263,6 +277,21 @@ export default class BlogPublisherPlugin extends Plugin {
             publishingNotice.hide();
             new Notice(`Theme publish failed: ${msg}`, 10000);
             console.error('Blog Publisher theme publish error:', e);
+        }
+    }
+
+    private async reconcileThemeSettings() {
+        if (!this.settings.githubToken) return;
+        const themeFile = this.app.vault.getAbstractFileByPath(this.settings.themeFilePath);
+        if (!(themeFile instanceof TFile)) return;
+
+        try {
+            const content = await this.app.vault.read(themeFile);
+            const contentHash = await this.hashText(content);
+            if (this.settings.themePublishedHash === contentHash) return;
+            await this.publishThemeFile(themeFile);
+        } catch (e) {
+            console.error('Theme reconcile failed:', e);
         }
     }
 
