@@ -39,7 +39,7 @@ export class GitHubService {
         try {
             commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
         } catch (e: unknown) {
-            if (e instanceof Error && e.message.includes('409')) {
+            if (this.shouldRetryRefUpdate(e)) {
                 headSha = await this.getHeadSha();
                 treeSha = await this.getTreeSha(headSha);
                 commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
@@ -97,7 +97,7 @@ export class GitHubService {
                 `Publish: ${postData.title}`
             );
         } catch (e: unknown) {
-            if (e instanceof Error && e.message.includes('409')) {
+            if (this.shouldRetryRefUpdate(e)) {
                 // Retry once: refetch head, rebuild
                 headSha = await this.getHeadSha();
                 treeSha = await this.getTreeSha(headSha);
@@ -141,7 +141,7 @@ export class GitHubService {
         try {
             return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
         } catch (e: unknown) {
-            if (e instanceof Error && e.message.includes('409')) {
+            if (this.shouldRetryRefUpdate(e)) {
                 headSha = await this.getHeadSha();
                 treeSha = await this.getTreeSha(headSha);
                 return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
@@ -279,6 +279,16 @@ export class GitHubService {
 
     private async apiPatch(path: string, body: Record<string, any>): Promise<Record<string, any>> {
         return this.apiRequest('PATCH', path, body);
+    }
+
+    private shouldRetryRefUpdate(error: unknown): boolean {
+        if (!(error instanceof Error)) return false;
+        return (
+            error.message.includes('409') ||
+            error.message.includes('422') ||
+            error.message.includes('Reference update failed') ||
+            error.message.includes('Update is not a fast forward')
+        );
     }
 
     private arrayBufferToBase64(buffer: ArrayBuffer): string {

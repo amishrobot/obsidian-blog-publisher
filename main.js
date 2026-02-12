@@ -182,7 +182,7 @@ var GitHubService = class {
     try {
       commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
     } catch (e) {
-      if (e instanceof Error && e.message.includes("409")) {
+      if (this.shouldRetryRefUpdate(e)) {
         headSha = await this.getHeadSha();
         treeSha = await this.getTreeSha(headSha);
         commitSha = await this.deleteAndUpdateRef(deletions, treeSha, headSha, title);
@@ -224,7 +224,7 @@ var GitHubService = class {
         `Publish: ${postData.title}`
       );
     } catch (e) {
-      if (e instanceof Error && e.message.includes("409")) {
+      if (this.shouldRetryRefUpdate(e)) {
         headSha = await this.getHeadSha();
         treeSha = await this.getTreeSha(headSha);
         commitSha = await this.createCommitAndUpdateRef(
@@ -258,7 +258,7 @@ var GitHubService = class {
     try {
       return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
     } catch (e) {
-      if (e instanceof Error && e.message.includes("409")) {
+      if (this.shouldRetryRefUpdate(e)) {
         headSha = await this.getHeadSha();
         treeSha = await this.getTreeSha(headSha);
         return await this.createCommitAndUpdateRef(blobs, treeSha, headSha, message);
@@ -370,6 +370,11 @@ var GitHubService = class {
   }
   async apiPatch(path, body) {
     return this.apiRequest("PATCH", path, body);
+  }
+  shouldRetryRefUpdate(error) {
+    if (!(error instanceof Error))
+      return false;
+    return error.message.includes("409") || error.message.includes("422") || error.message.includes("Reference update failed") || error.message.includes("Update is not a fast forward");
   }
   arrayBufferToBase64(buffer) {
     const bytes = new Uint8Array(buffer);
