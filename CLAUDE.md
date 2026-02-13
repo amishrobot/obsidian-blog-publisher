@@ -38,12 +38,13 @@ src/
 1. **Build**: `npm run build` (produces `main.js`)
 2. **Update version** in BOTH `manifest.json` AND `package.json` (they must match)
 3. **Commit** all changes including `main.js` (it's committed, not gitignored)
-4. **Git tag** the release with `v` prefix: `git tag v<version>` (e.g., `git tag v2.0.1`) — the `v` prefix is REQUIRED, BRAT ignores tags without it
+4. **Git tag** with `v` prefix: `git tag v<version>` (e.g., `git tag v2.0.1`)
 5. **Push** commits AND tag: `git push origin main --tags`
-6. **Install to vault**: `cp main.js manifest.json styles.css ~/JoshOS/.obsidian/plugins/blog-publisher/`
-7. **Reload Obsidian** to pick up changes
+6. **Create GitHub Release** with assets: `gh release create v<version> --title "v<version>" --notes "..." main.js manifest.json styles.css`
+7. **Install to vault**: `cp main.js manifest.json styles.css ~/JoshOS/.obsidian/plugins/blog-publisher/`
+8. **Reload Obsidian** to pick up changes
 
-**WHY THE TAG MATTERS:** This plugin is installed via BRAT (Beta Reviewers Auto-update Tester). BRAT only sees releases that have a git tag. No tag = invisible to BRAT = update never arrives in Obsidian. This has caused failed deployments multiple times.
+**WHY RELEASES MATTER:** This plugin is installed via BRAT (Beta Reviewers Auto-update Tester). BRAT requires a **GitHub Release** (not just a git tag) with `main.js`, `manifest.json`, and `styles.css` attached as assets. The tag MUST have a `v` prefix (e.g., `v2.0.1` not `2.0.1`). Missing any of these = invisible to BRAT = update never arrives in Obsidian.
 
 **DO NOT** overwrite `data.json` in the vault plugin directory — it contains the user's settings including the GitHub token.
 
