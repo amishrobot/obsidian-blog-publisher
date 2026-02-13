@@ -2242,7 +2242,12 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
       }
     });
     this.registerEvent(
-      this.app.workspace.on("file-open", (file) => {
+      this.app.workspace.on("file-open", async (file) => {
+        if (file instanceof import_obsidian6.TFile && this.isPostFile(file)) {
+          await this.syncTitleAndSlugFromName(file);
+          this.scheduleRefresh(file);
+          return;
+        }
         this.scheduleRefresh(file != null ? file : null);
       })
     );
@@ -2268,20 +2273,9 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     );
     this.registerEvent(
       this.app.vault.on("rename", async (file, oldPath) => {
-        var _a;
         if (!(file instanceof import_obsidian6.TFile) || !this.isPostFile(file))
           return;
-        const newTitle = file.basename;
-        const oldBasename = ((_a = oldPath.split("/").pop()) == null ? void 0 : _a.replace(/\.md$/i, "")) || "";
-        const oldAutoSlug = this.slugify(oldBasename);
-        const newAutoSlug = this.slugify(newTitle);
-        await this.app.fileManager.processFrontMatter(file, (fm) => {
-          fm.title = newTitle;
-          const currentSlug = String(fm.slug || "").trim();
-          if (!currentSlug || oldAutoSlug && currentSlug === oldAutoSlug) {
-            fm.slug = newAutoSlug;
-          }
-        });
+        await this.syncTitleAndSlugFromName(file, oldPath);
         this.scheduleRefresh(file);
       })
     );
@@ -2300,6 +2294,32 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
   }
   slugify(value) {
     return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
+  async syncTitleAndSlugFromName(file, oldPath) {
+    var _a;
+    const newTitle = file.basename;
+    const oldBasename = ((_a = oldPath == null ? void 0 : oldPath.split("/").pop()) == null ? void 0 : _a.replace(/\.md$/i, "")) || "";
+    const oldAutoSlug = this.slugify(oldBasename);
+    const newAutoSlug = this.slugify(newTitle);
+    let needsUpdate = false;
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const currentTitle = String(fm.title || "");
+      if (currentTitle !== newTitle) {
+        fm.title = newTitle;
+        needsUpdate = true;
+      }
+      if (!oldPath)
+        return;
+      const currentSlug = String(fm.slug || "").trim();
+      if (!currentSlug || oldAutoSlug && currentSlug === oldAutoSlug) {
+        if (currentSlug !== newAutoSlug) {
+          fm.slug = newAutoSlug;
+          needsUpdate = true;
+        }
+      }
+    });
+    if (!needsUpdate)
+      return;
   }
   async activateView() {
     const { workspace } = this.app;

@@ -51,7 +51,12 @@ export default class BlogPublisherPlugin extends Plugin {
 
     // Refresh panel when active file changes
     this.registerEvent(
-      this.app.workspace.on('file-open', (file) => {
+      this.app.workspace.on('file-open', async (file) => {
+        if (file instanceof TFile && this.isPostFile(file)) {
+          await this.syncTitleAndSlugFromName(file);
+          this.scheduleRefresh(file);
+          return;
+        }
         this.scheduleRefresh((file as TFile | null) ?? null);
       })
     );
@@ -83,21 +88,7 @@ export default class BlogPublisherPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('rename', async (file, oldPath) => {
         if (!(file instanceof TFile) || !this.isPostFile(file)) return;
-
-        const newTitle = file.basename;
-        const oldBasename = oldPath.split('/').pop()?.replace(/\.md$/i, '') || '';
-        const oldAutoSlug = this.slugify(oldBasename);
-        const newAutoSlug = this.slugify(newTitle);
-
-        await this.app.fileManager.processFrontMatter(file, (fm) => {
-          fm.title = newTitle;
-
-          const currentSlug = String(fm.slug || '').trim();
-          if (!currentSlug || (oldAutoSlug && currentSlug === oldAutoSlug)) {
-            fm.slug = newAutoSlug;
-          }
-        });
-
+        await this.syncTitleAndSlugFromName(file, oldPath);
         this.scheduleRefresh(file);
       })
     );
@@ -123,6 +114,34 @@ export default class BlogPublisherPlugin extends Plugin {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
+  }
+
+  private async syncTitleAndSlugFromName(file: TFile, oldPath?: string): Promise<void> {
+    const newTitle = file.basename;
+    const oldBasename = oldPath?.split('/').pop()?.replace(/\.md$/i, '') || '';
+    const oldAutoSlug = this.slugify(oldBasename);
+    const newAutoSlug = this.slugify(newTitle);
+
+    let needsUpdate = false;
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const currentTitle = String(fm.title || '');
+      if (currentTitle !== newTitle) {
+        fm.title = newTitle;
+        needsUpdate = true;
+      }
+
+      if (!oldPath) return;
+
+      const currentSlug = String(fm.slug || '').trim();
+      if (!currentSlug || (oldAutoSlug && currentSlug === oldAutoSlug)) {
+        if (currentSlug !== newAutoSlug) {
+          fm.slug = newAutoSlug;
+          needsUpdate = true;
+        }
+      }
+    });
+
+    if (!needsUpdate) return;
   }
 
   async activateView() {
