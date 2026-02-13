@@ -18,9 +18,19 @@ export function UrlPreview({ url, t }: UrlPreviewProps) {
     setTimeout(() => setCopied(false), 1800);
   };
 
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      copy();
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={copy}
+      onKeyDown={onKeyDown}
       {...hoverHandlers}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
@@ -28,10 +38,16 @@ export function UrlPreview({ url, t }: UrlPreviewProps) {
         background: hovered ? t.hoverBg : t.bgDeep,
         border: `1px solid ${hovered ? t.accent + '60' : t.border}`,
         fontSize: 11.5, fontFamily: "'SF Mono', Consolas, monospace",
-        color: t.textMuted, wordBreak: 'break-all', lineHeight: 1.5,
+        color: t.textMuted,
+        wordBreak: 'break-word',
+        overflowWrap: 'anywhere',
+        whiteSpace: 'normal',
+        lineHeight: 1.5,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
         boxSizing: 'border-box',
+        maxWidth: '100%',
+        minWidth: 0,
       }}
     >
       {copied ? (
@@ -39,10 +55,10 @@ export function UrlPreview({ url, t }: UrlPreviewProps) {
       ) : (
         <Fragment>
           <span style={{ color: t.textFaint }}>https://</span>
-          <span style={{ color: t.urlColor, transition: 'color 0.4s ease' }}>{url}</span>
+          <span style={{ color: t.urlColor, transition: 'color 0.4s ease', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{url}</span>
           {hovered && <span style={{ color: t.textFaint, marginLeft: 6, fontSize: 10 }}>{'\u2398'}</span>}
         </Fragment>
       )}
-    </button>
+    </div>
   );
 }

@@ -990,10 +990,19 @@ function UrlPreview({ url, t: t3 }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
+  const onKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      copy();
+    }
+  };
   return /* @__PURE__ */ _(
-    "button",
+    "div",
     {
+      role: "button",
+      tabIndex: 0,
       onClick: copy,
+      onKeyDown,
       ...hoverHandlers,
       style: {
         display: "block",
@@ -1006,14 +1015,18 @@ function UrlPreview({ url, t: t3 }) {
         fontSize: 11.5,
         fontFamily: "'SF Mono', Consolas, monospace",
         color: t3.textMuted,
-        wordBreak: "break-all",
+        wordBreak: "break-word",
+        overflowWrap: "anywhere",
+        whiteSpace: "normal",
         lineHeight: 1.5,
         cursor: "pointer",
         transition: "all 0.2s ease",
-        boxSizing: "border-box"
+        boxSizing: "border-box",
+        maxWidth: "100%",
+        minWidth: 0
       }
     },
-    copied ? /* @__PURE__ */ _("span", { style: { color: "#98c379", animation: "fadeScaleIn 0.15s ease" } }, "\u2713", " Copied to clipboard") : /* @__PURE__ */ _(k, null, /* @__PURE__ */ _("span", { style: { color: t3.textFaint } }, "https://"), /* @__PURE__ */ _("span", { style: { color: t3.urlColor, transition: "color 0.4s ease" } }, url), hovered && /* @__PURE__ */ _("span", { style: { color: t3.textFaint, marginLeft: 6, fontSize: 10 } }, "\u2398"))
+    copied ? /* @__PURE__ */ _("span", { style: { color: "#98c379", animation: "fadeScaleIn 0.15s ease" } }, "\u2713", " Copied to clipboard") : /* @__PURE__ */ _(k, null, /* @__PURE__ */ _("span", { style: { color: t3.textFaint } }, "https://"), /* @__PURE__ */ _("span", { style: { color: t3.urlColor, transition: "color 0.4s ease", overflowWrap: "anywhere", wordBreak: "break-word" } }, url), hovered && /* @__PURE__ */ _("span", { style: { color: t3.textFaint, marginLeft: 6, fontSize: 10 } }, "\u2398"))
   );
 }
 
@@ -1367,7 +1380,7 @@ function PublishPanel({
     background: statusConfig.bg,
     border: `1px solid ${statusConfig.color}40`,
     transition: "all 0.25s ease"
-  } }, /* @__PURE__ */ _("span", { style: { fontSize: 8, color: statusConfig.color } }, statusConfig.icon), /* @__PURE__ */ _("span", { style: { fontSize: 10.5, color: statusConfig.color, fontWeight: 500 } }, statusConfig.label))), /* @__PURE__ */ _("div", { style: { flex: 1, overflowY: "auto", padding: "8px 14px 14px" } }, /* @__PURE__ */ _("div", { style: { padding: "8px 0 12px" } }, /* @__PURE__ */ _("div", { style: { fontSize: 14, fontWeight: 600, color: t3.heading, lineHeight: 1.35, transition: "color 0.4s ease" } }, post.title), /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textFaint, marginTop: 4, transition: "color 0.4s ease" } }, post.wordCount, " words ", "\xB7", " ", readingTime, " min read ", "\xB7", " ", post.type)), /* @__PURE__ */ _(AnimatedSection, { title: "Status", t: t3 }, /* @__PURE__ */ _("div", { style: { display: "flex", flexDirection: "column", gap: 3 } }, Object.keys(STATUS_CONFIG).map((s3) => /* @__PURE__ */ _(StatusPill, { key: s3, status: s3, selected: post.status === s3, onClick: () => onStatusChange(s3), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Theme", collapsible: true, defaultOpen: false, t: t3 }, /* @__PURE__ */ _("div", { style: { marginBottom: 6 } }, /* @__PURE__ */ _(FieldRow, { label: "Live theme", t: t3 }, /* @__PURE__ */ _("span", { style: {
+  } }, /* @__PURE__ */ _("span", { style: { fontSize: 8, color: statusConfig.color } }, statusConfig.icon), /* @__PURE__ */ _("span", { style: { fontSize: 10.5, color: statusConfig.color, fontWeight: 500 } }, statusConfig.label))), /* @__PURE__ */ _("div", { style: { flex: 1, overflowY: "auto", overflowX: "hidden", minWidth: 0, padding: "8px 14px 14px" } }, /* @__PURE__ */ _("div", { style: { padding: "8px 0 12px" } }, /* @__PURE__ */ _("div", { style: { fontSize: 14, fontWeight: 600, color: t3.heading, lineHeight: 1.35, transition: "color 0.4s ease" } }, post.title), /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textFaint, marginTop: 4, transition: "color 0.4s ease" } }, post.wordCount, " words ", "\xB7", " ", readingTime, " min read ", "\xB7", " ", post.type)), /* @__PURE__ */ _(AnimatedSection, { title: "Status", t: t3 }, /* @__PURE__ */ _("div", { style: { display: "flex", flexDirection: "column", gap: 3 } }, Object.keys(STATUS_CONFIG).map((s3) => /* @__PURE__ */ _(StatusPill, { key: s3, status: s3, selected: post.status === s3, onClick: () => onStatusChange(s3), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Theme", collapsible: true, defaultOpen: false, t: t3 }, /* @__PURE__ */ _("div", { style: { marginBottom: 6 } }, /* @__PURE__ */ _(FieldRow, { label: "Live theme", t: t3 }, /* @__PURE__ */ _("span", { style: {
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"

@@ -206,7 +206,7 @@ export function PublishPanel({
       </div>
 
       {/* Scrollable Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 14px 14px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: '8px 14px 14px' }}>
 
         {/* Post title + reading time */}
         <div style={{ padding: '8px 0 12px' }}>
