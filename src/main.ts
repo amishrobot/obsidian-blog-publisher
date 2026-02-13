@@ -115,9 +115,8 @@ export default class BlogPublisherPlugin extends Plugin {
     const githubService = new GitHubService(this.app, this.settings);
     const result = await githubService.publish(postData);
 
-    // Write back frontmatter
+    // Write publish metadata (don't touch status — user controls that via the panel)
     await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = 'published';
       fm.publishedAt = new Date().toISOString();
       fm.publishedCommit = result.commitSha;
       fm.publishedHash = postData.publishedHash;
@@ -135,7 +134,6 @@ export default class BlogPublisherPlugin extends Plugin {
       delete fm.publishedAt;
       delete fm.publishedCommit;
       delete fm.publishedHash;
-      fm.status = 'unpublished';
     });
   }
 

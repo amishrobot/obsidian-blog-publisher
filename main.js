@@ -1509,11 +1509,9 @@ var PostService = class {
     this.settings = settings;
   }
   async buildPostData(file) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    if (!(cache == null ? void 0 : cache.frontmatter)) {
-      throw new Error("No frontmatter found");
-    }
-    const fm = cache.frontmatter;
+    const content = await this.app.vault.read(file);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (0, import_obsidian2.parseYaml)(fmMatch[1]) || {} : {};
     if (!fm.title)
       throw new Error("Missing required frontmatter: title");
     if (!fm.date)
@@ -1527,7 +1525,6 @@ var PostService = class {
     if (!yearMatch)
       throw new Error(`Invalid date format: ${date}`);
     const year = yearMatch[1];
-    const content = await this.app.vault.read(file);
     const images = await this.resolveImages(content, year, slug);
     const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
@@ -2175,7 +2172,6 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     const githubService = new GitHubService(this.app, this.settings);
     const result = await githubService.publish(postData);
     await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = "published";
       fm.publishedAt = (/* @__PURE__ */ new Date()).toISOString();
       fm.publishedCommit = result.commitSha;
       fm.publishedHash = postData.publishedHash;
@@ -2191,7 +2187,6 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
       delete fm.publishedAt;
       delete fm.publishedCommit;
       delete fm.publishedHash;
-      fm.status = "unpublished";
     });
   }
   // ── Settings ────────────────────────────────────────────────────

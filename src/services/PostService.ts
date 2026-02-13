@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian';
+import { App, TFile, parseYaml } from 'obsidian';
 import { BlogPublisherSettings, PostData, ImageData } from '../models/types';
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'bmp']);
@@ -13,12 +13,11 @@ export class PostService {
   }
 
   async buildPostData(file: TFile): Promise<PostData> {
-    const cache = this.app.metadataCache.getFileCache(file);
-    if (!cache?.frontmatter) {
-      throw new Error('No frontmatter found');
-    }
+    // Parse frontmatter from file content directly (metadataCache can be stale)
+    const content = await this.app.vault.read(file);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (parseYaml(fmMatch[1]) || {}) : {};
 
-    const fm = cache.frontmatter;
     if (!fm.title) throw new Error('Missing required frontmatter: title');
     if (!fm.date) throw new Error('Missing required frontmatter: date');
     if (!fm.slug) throw new Error('Missing required frontmatter: slug');
@@ -30,8 +29,6 @@ export class PostService {
     const yearMatch = date.match(/^(\d{4})/);
     if (!yearMatch) throw new Error(`Invalid date format: ${date}`);
     const year = yearMatch[1];
-
-    const content = await this.app.vault.read(file);
     const images = await this.resolveImages(content, year, slug);
     const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
