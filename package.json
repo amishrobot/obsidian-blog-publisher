@@ -1,6 +1,6 @@
 {
   "name": "obsidian-blog-publisher",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Publish blog posts from Obsidian to GitHub with a visual side panel",
   "main": "main.js",
   "scripts": {

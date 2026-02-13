@@ -1376,6 +1376,7 @@ var VIEW_TYPE_BLOG_PUBLISHER = "blog-publisher-view";
 var PublishView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
+    this.savedStates = /* @__PURE__ */ new Map();
     this.plugin = plugin;
   }
   getViewType() {
@@ -1403,7 +1404,10 @@ var PublishView = class extends import_obsidian.ItemView {
       return;
     }
     const post = await this.buildPostState(file);
-    const saved = await this.buildSavedState(file);
+    if (!this.savedStates.has(file.path)) {
+      this.savedStates.set(file.path, { ...post });
+    }
+    const saved = this.savedStates.get(file.path);
     const settings = this.plugin.settings;
     G(
       _(PublishPanel, {
@@ -1445,9 +1449,6 @@ var PublishView = class extends import_obsidian.ItemView {
       publishedAt: String(fm.publishedAt || "")
     };
   }
-  async buildSavedState(file) {
-    return this.buildPostState(file);
-  }
   async handleStatusChange(file, status) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       fm.status = status;
@@ -1478,10 +1479,14 @@ theme: ${theme}
   }
   async handlePublish(file) {
     await this.plugin.publishFile(file);
+    const newState = await this.buildPostState(file);
+    this.savedStates.set(file.path, { ...newState });
     await this.refresh();
   }
   async handleUnpublish(file) {
     await this.plugin.unpublishFile(file);
+    const newState = await this.buildPostState(file);
+    this.savedStates.set(file.path, { ...newState });
     await this.refresh();
   }
   async handleRunChecks(file) {

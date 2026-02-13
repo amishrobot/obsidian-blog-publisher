@@ -2,13 +2,14 @@ import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
 import { h, render } from 'preact';
 import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
-import { PostState, STATUS_CONFIG } from './models/types';
+import { PostState } from './models/types';
 import { CheckResult } from './services/ChecksService';
 
 export const VIEW_TYPE_BLOG_PUBLISHER = 'blog-publisher-view';
 
 export class PublishView extends ItemView {
   plugin: BlogPublisherPlugin;
+  private savedStates = new Map<string, PostState>();
 
   constructor(leaf: WorkspaceLeaf, plugin: BlogPublisherPlugin) {
     super(leaf);
@@ -47,7 +48,14 @@ export class PublishView extends ItemView {
     }
 
     const post = await this.buildPostState(file);
-    const saved = await this.buildSavedState(file);
+
+    // Capture a snapshot of the state when we first see a file.
+    // This frozen "saved" state represents what's currently published.
+    // It only gets updated after a successful publish/unpublish.
+    if (!this.savedStates.has(file.path)) {
+      this.savedStates.set(file.path, { ...post });
+    }
+    const saved = this.savedStates.get(file.path)!;
     const settings = this.plugin.settings;
 
     render(
@@ -94,12 +102,6 @@ export class PublishView extends ItemView {
     };
   }
 
-  private async buildSavedState(file: TFile): Promise<PostState> {
-    // "Saved" = the last published state snapshot from frontmatter.
-    // The panel compares "saved" (what's published) to "post" (current).
-    return this.buildPostState(file);
-  }
-
   private async handleStatusChange(file: TFile, status: string): Promise<void> {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       fm.status = status;
@@ -131,11 +133,17 @@ export class PublishView extends ItemView {
 
   private async handlePublish(file: TFile): Promise<void> {
     await this.plugin.publishFile(file);
+    // After successful publish, update the saved snapshot to match current state
+    const newState = await this.buildPostState(file);
+    this.savedStates.set(file.path, { ...newState });
     await this.refresh();
   }
 
   private async handleUnpublish(file: TFile): Promise<void> {
     await this.plugin.unpublishFile(file);
+    // After successful unpublish, update the saved snapshot
+    const newState = await this.buildPostState(file);
+    this.savedStates.set(file.path, { ...newState });
     await this.refresh();
   }
 
