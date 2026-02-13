@@ -4,13 +4,44 @@
 
 Preact-powered side panel plugin for publishing blog posts from Obsidian to GitHub. Replaces v1's invisible frontmatter-watching with explicit UI controls.
 
+## How It Works
+
+### Status Model
+
+Posts have two statuses: **Draft** and **Published**. Status is stored in frontmatter (`status: draft` or `status: publish`). The blog site filters by `status === 'publish'` — only published posts appear on the live site.
+
+### Publish = Push to GitHub
+
+Clicking "Publish" pushes the post markdown + images to the blog repo via GitHub's git tree API. Vercel auto-deploys from the repo. The post's status in frontmatter determines whether the site renders it:
+
+- **Draft + Publish** → file exists on GitHub but site excludes it (not live)
+- **Published + Publish** → file on GitHub with `status: publish`, site renders it (live)
+
+### Unpublish = Delete from GitHub
+
+"Unpublish" deletes the post file (and its images) from the GitHub repo entirely. The file is removed from the git tree (`sha: null`). This is a hard removal — the post disappears from the site completely.
+
+### Change Tracking
+
+The panel tracks a "saved" snapshot (captured when the panel first loads a file). Any changes to status, slug, tags, or theme are compared against this snapshot to show pending changes and enable the Publish button. The snapshot updates after a successful publish.
+
+### Frontmatter Metadata
+
+After a successful publish, the plugin writes these fields to frontmatter (but does NOT touch `status` — that's user-controlled):
+
+```yaml
+publishedAt: 2026-02-13T06:32:14.680Z
+publishedCommit: abc123...
+publishedHash: def456...
+```
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | UI | Preact (h/Fragment), inline styles |
 | Build | esbuild with JSX transform |
-| API | Obsidian Plugin API (ItemView, requestUrl) |
+| API | Obsidian Plugin API (ItemView, requestUrl, parseYaml) |
 | Backend | GitHub REST API (blobs, trees, commits) |
 | Config | JoshOS `_state/blog-config.md` with Obsidian settings fallback |
 
@@ -19,12 +50,18 @@ Preact-powered side panel plugin for publishing blog posts from Obsidian to GitH
 ```
 src/
 ├── main.ts                    # Plugin entry: view registration, commands, file watching
+│                              # Contains publishFile() and unpublishFile() — these write
+│                              # frontmatter after deploy (publishedAt, hash, commit)
 ├── PublishView.tsx             # Obsidian ItemView → mounts Preact PublishPanel
+│                              # Parses frontmatter via parseYaml (NOT metadataCache)
+│                              # Manages savedStates Map for change tracking
 ├── SettingsTab.ts              # Plugin settings UI (fallback for non-JoshOS)
 ├── models/types.ts             # All interfaces, constants, theme palettes
+│                              # STATUS_CONFIG: draft, publish (2 statuses only)
 ├── services/
 │   ├── GitHubService.ts        # GitHub REST API (publish/unpublish via git tree API)
 │   ├── PostService.ts          # Build post data, resolve images, compute hashes
+│   │                           # Parses frontmatter via parseYaml (NOT metadataCache)
 │   ├── ConfigService.ts        # Read JoshOS _state/blog-config.md
 │   └── ChecksService.ts       # 5 pre-publish validators
 ├── hooks/useHover.ts           # Shared hover state hook
@@ -47,6 +84,12 @@ src/
 **WHY RELEASES MATTER:** This plugin is installed via BRAT (Beta Reviewers Auto-update Tester). BRAT requires a **GitHub Release** (not just a git tag) with `main.js`, `manifest.json`, and `styles.css` attached as assets. The tag MUST have a `v` prefix (e.g., `v2.0.1` not `2.0.1`). Missing any of these = invisible to BRAT = update never arrives in Obsidian.
 
 **DO NOT** overwrite `data.json` in the vault plugin directory — it contains the user's settings including the GitHub token.
+
+## Known Pitfalls
+
+- **Obsidian `metadataCache` is async** — it can be stale immediately after `processFrontMatter` writes. Always use `parseYaml` on raw file content (via `vault.read()`) instead of `metadataCache.getFileCache()`.
+- **`publishFile()` and `unpublishFile()` in `main.ts`** write frontmatter after deploy. If status bugs appear, check here FIRST — previous bugs were caused by these methods overwriting the user's chosen status.
+- **Blog site filters by `status === 'publish'`** in all page routes (index, archive, RSS, post pages, redirects). Posts with any other status are excluded from the build.
 
 ## GitHub Remote
 
