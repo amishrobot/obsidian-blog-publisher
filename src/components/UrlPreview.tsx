@@ -11,9 +11,10 @@ interface UrlPreviewProps {
 export function UrlPreview({ url, t }: UrlPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [hovered, hoverHandlers] = useHover();
+  const fullUrl = `https://${url}`;
 
   const copy = () => {
-    navigator.clipboard.writeText('https://' + url).catch(() => {});
+    navigator.clipboard.writeText(fullUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
@@ -32,16 +33,16 @@ export function UrlPreview({ url, t }: UrlPreviewProps) {
       onClick={copy}
       onKeyDown={onKeyDown}
       {...hoverHandlers}
+      title={fullUrl}
       style={{
-        display: 'block', width: '100%', textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left',
         padding: '8px 10px', borderRadius: 6,
         background: hovered ? t.hoverBg : t.bgDeep,
         border: `1px solid ${hovered ? t.accent + '60' : t.border}`,
         fontSize: 11.5, fontFamily: "'SF Mono', Consolas, monospace",
         color: t.textMuted,
-        wordBreak: 'break-word',
-        overflowWrap: 'anywhere',
-        whiteSpace: 'normal',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
         lineHeight: 1.5,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
@@ -54,8 +55,17 @@ export function UrlPreview({ url, t }: UrlPreviewProps) {
         <span style={{ color: '#98c379', animation: 'fadeScaleIn 0.15s ease' }}>{'\u2713'} Copied to clipboard</span>
       ) : (
         <Fragment>
-          <span style={{ color: t.textFaint }}>https://</span>
-          <span style={{ color: t.urlColor, transition: 'color 0.4s ease', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{url}</span>
+          <span style={{
+            flex: 1,
+            minWidth: 0,
+            color: t.urlColor,
+            transition: 'color 0.4s ease',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {fullUrl}
+          </span>
           {hovered && <span style={{ color: t.textFaint, marginLeft: 6, fontSize: 10 }}>{'\u2398'}</span>}
         </Fragment>
       )}

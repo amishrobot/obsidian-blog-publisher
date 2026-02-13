@@ -984,8 +984,9 @@ function SlugEditor({ slug, onChange, t: t3 }) {
 function UrlPreview({ url, t: t3 }) {
   const [copied, setCopied] = d2(false);
   const [hovered, hoverHandlers] = useHover();
+  const fullUrl = `https://${url}`;
   const copy = () => {
-    navigator.clipboard.writeText("https://" + url).catch(() => {
+    navigator.clipboard.writeText(fullUrl).catch(() => {
     });
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
@@ -1004,8 +1005,11 @@ function UrlPreview({ url, t: t3 }) {
       onClick: copy,
       onKeyDown,
       ...hoverHandlers,
+      title: fullUrl,
       style: {
-        display: "block",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
         width: "100%",
         textAlign: "left",
         padding: "8px 10px",
@@ -1015,9 +1019,8 @@ function UrlPreview({ url, t: t3 }) {
         fontSize: 11.5,
         fontFamily: "'SF Mono', Consolas, monospace",
         color: t3.textMuted,
-        wordBreak: "break-word",
-        overflowWrap: "anywhere",
-        whiteSpace: "normal",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
         lineHeight: 1.5,
         cursor: "pointer",
         transition: "all 0.2s ease",
@@ -1026,7 +1029,15 @@ function UrlPreview({ url, t: t3 }) {
         minWidth: 0
       }
     },
-    copied ? /* @__PURE__ */ _("span", { style: { color: "#98c379", animation: "fadeScaleIn 0.15s ease" } }, "\u2713", " Copied to clipboard") : /* @__PURE__ */ _(k, null, /* @__PURE__ */ _("span", { style: { color: t3.textFaint } }, "https://"), /* @__PURE__ */ _("span", { style: { color: t3.urlColor, transition: "color 0.4s ease", overflowWrap: "anywhere", wordBreak: "break-word" } }, url), hovered && /* @__PURE__ */ _("span", { style: { color: t3.textFaint, marginLeft: 6, fontSize: 10 } }, "\u2398"))
+    copied ? /* @__PURE__ */ _("span", { style: { color: "#98c379", animation: "fadeScaleIn 0.15s ease" } }, "\u2713", " Copied to clipboard") : /* @__PURE__ */ _(k, null, /* @__PURE__ */ _("span", { style: {
+      flex: 1,
+      minWidth: 0,
+      color: t3.urlColor,
+      transition: "color 0.4s ease",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    } }, fullUrl), hovered && /* @__PURE__ */ _("span", { style: { color: t3.textFaint, marginLeft: 6, fontSize: 10 } }, "\u2398"))
   );
 }
 
@@ -2255,6 +2266,25 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
         modifyTimeout = setTimeout(() => this.scheduleRefresh(file), 500);
       })
     );
+    this.registerEvent(
+      this.app.vault.on("rename", async (file, oldPath) => {
+        var _a;
+        if (!(file instanceof import_obsidian6.TFile) || !this.isPostFile(file))
+          return;
+        const newTitle = file.basename;
+        const oldBasename = ((_a = oldPath.split("/").pop()) == null ? void 0 : _a.replace(/\.md$/i, "")) || "";
+        const oldAutoSlug = this.slugify(oldBasename);
+        const newAutoSlug = this.slugify(newTitle);
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.title = newTitle;
+          const currentSlug = String(fm.slug || "").trim();
+          if (!currentSlug || oldAutoSlug && currentSlug === oldAutoSlug) {
+            fm.slug = newAutoSlug;
+          }
+        });
+        this.scheduleRefresh(file);
+      })
+    );
     this.addSettingTab(new SettingsTab(this.app, this));
   }
   async onunload() {
@@ -2267,6 +2297,9 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
   isPostFile(file) {
     const folder = this.settings.postsFolder.replace(/\/$/, "");
     return file.path.startsWith(folder + "/") && file.path.endsWith(".md");
+  }
+  slugify(value) {
+    return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   }
   async activateView() {
     const { workspace } = this.app;

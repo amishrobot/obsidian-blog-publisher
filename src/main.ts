@@ -78,6 +78,30 @@ export default class BlogPublisherPlugin extends Plugin {
       })
     );
 
+    // Keep post title aligned with note title on rename.
+    // Slug policy: only auto-update if it still matched the old title-derived slug.
+    this.registerEvent(
+      this.app.vault.on('rename', async (file, oldPath) => {
+        if (!(file instanceof TFile) || !this.isPostFile(file)) return;
+
+        const newTitle = file.basename;
+        const oldBasename = oldPath.split('/').pop()?.replace(/\.md$/i, '') || '';
+        const oldAutoSlug = this.slugify(oldBasename);
+        const newAutoSlug = this.slugify(newTitle);
+
+        await this.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.title = newTitle;
+
+          const currentSlug = String(fm.slug || '').trim();
+          if (!currentSlug || (oldAutoSlug && currentSlug === oldAutoSlug)) {
+            fm.slug = newAutoSlug;
+          }
+        });
+
+        this.scheduleRefresh(file);
+      })
+    );
+
     // Settings tab
     this.addSettingTab(new SettingsTab(this.app, this));
   }
@@ -91,6 +115,14 @@ export default class BlogPublisherPlugin extends Plugin {
   private isPostFile(file: TFile): boolean {
     const folder = this.settings.postsFolder.replace(/\/$/, '');
     return file.path.startsWith(folder + '/') && file.path.endsWith('.md');
+  }
+
+  private slugify(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 
   async activateView() {
