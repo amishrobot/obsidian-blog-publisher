@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, parseYaml } from 'obsidian';
 import { h, render } from 'preact';
 import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
@@ -82,10 +82,15 @@ export class PublishView extends ItemView {
   }
 
   private async buildPostState(file: TFile): Promise<PostState> {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const fm = cache?.frontmatter || {};
     const content = await this.app.vault.read(file);
-    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
+
+    // Parse frontmatter directly from file content rather than metadataCache,
+    // which can be stale immediately after processFrontMatter writes.
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (parseYaml(fmMatch[1]) || {}) : {};
+
+    const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+    const wordCount = body.split(/\s+/).filter((w: string) => w.length > 0).length;
 
     return {
       title: String(fm.title || file.basename),

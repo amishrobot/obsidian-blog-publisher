@@ -1431,10 +1431,11 @@ var PublishView = class extends import_obsidian.ItemView {
     return file.path.startsWith(folder + "/") && file.path.endsWith(".md");
   }
   async buildPostState(file) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const fm = (cache == null ? void 0 : cache.frontmatter) || {};
     const content = await this.app.vault.read(file);
-    const wordCount = content.split(/\s+/).filter((w3) => w3.length > 0).length;
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (0, import_obsidian.parseYaml)(fmMatch[1]) || {} : {};
+    const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+    const wordCount = body.split(/\s+/).filter((w3) => w3.length > 0).length;
     return {
       title: String(fm.title || file.basename),
       slug: String(fm.slug || ""),
