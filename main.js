@@ -510,9 +510,7 @@ var DEFAULT_SETTINGS = {
 };
 var STATUS_CONFIG = {
   draft: { label: "Draft", color: "#e5c07b", bg: "#e5c07b20", icon: "\u25CB", desc: "Work in progress" },
-  review: { label: "Review", color: "#61afef", bg: "#61afef20", icon: "\u25CE", desc: "Ready for review" },
-  publish: { label: "Published", color: "#98c379", bg: "#98c37920", icon: "\u25CF", desc: "Live on site" },
-  unpublish: { label: "Unpublished", color: "#e06c75", bg: "#e06c7520", icon: "\u25CB", desc: "Taken offline" }
+  publish: { label: "Published", color: "#98c379", bg: "#98c37920", icon: "\u25CF", desc: "Live on site" }
 };
 var THEME_PALETTES = {
   classic: {

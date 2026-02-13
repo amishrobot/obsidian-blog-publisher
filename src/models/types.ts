@@ -73,10 +73,8 @@ export interface StatusDef {
 }
 
 export const STATUS_CONFIG: Record<string, StatusDef> = {
-  draft:     { label: 'Draft',       color: '#e5c07b', bg: '#e5c07b20', icon: '○', desc: 'Work in progress' },
-  review:    { label: 'Review',      color: '#61afef', bg: '#61afef20', icon: '◎', desc: 'Ready for review' },
-  publish:   { label: 'Published',   color: '#98c379', bg: '#98c37920', icon: '●', desc: 'Live on site' },
-  unpublish: { label: 'Unpublished', color: '#e06c75', bg: '#e06c7520', icon: '○', desc: 'Taken offline' },
+  draft:   { label: 'Draft',     color: '#e5c07b', bg: '#e5c07b20', icon: '○', desc: 'Work in progress' },
+  publish: { label: 'Published', color: '#98c379', bg: '#98c37920', icon: '●', desc: 'Live on site' },
 };
 
 // ── Theme Palettes ──────────────────────────────────────────────────
