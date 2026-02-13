@@ -138,11 +138,7 @@ export class PublishView extends ItemView {
 
   private async handlePublish(file: TFile): Promise<void> {
     await this.plugin.publishFile(file);
-    // Mark the post as published in frontmatter
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = 'publish';
-    });
-    // Update the saved snapshot so the panel shows "Live" with no pending changes
+    // Update saved snapshot to match what was just deployed
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
     await this.refresh();
@@ -150,11 +146,7 @@ export class PublishView extends ItemView {
 
   private async handleUnpublish(file: TFile): Promise<void> {
     await this.plugin.unpublishFile(file);
-    // Mark the post as unpublished in frontmatter
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = 'unpublish';
-    });
-    // Update the saved snapshot
+    // Update saved snapshot
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
     await this.refresh();

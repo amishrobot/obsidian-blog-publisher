@@ -1480,18 +1480,12 @@ theme: ${theme}
   }
   async handlePublish(file) {
     await this.plugin.publishFile(file);
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = "publish";
-    });
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
     await this.refresh();
   }
   async handleUnpublish(file) {
     await this.plugin.unpublishFile(file);
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.status = "unpublish";
-    });
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
     await this.refresh();
