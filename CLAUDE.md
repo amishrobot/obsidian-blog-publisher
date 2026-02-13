@@ -38,7 +38,7 @@ src/
 1. **Build**: `npm run build` (produces `main.js`)
 2. **Update version** in BOTH `manifest.json` AND `package.json` (they must match)
 3. **Commit** all changes including `main.js` (it's committed, not gitignored)
-4. **Git tag** the release: `git tag <version>` (e.g., `git tag 2.0.1`)
+4. **Git tag** the release with `v` prefix: `git tag v<version>` (e.g., `git tag v2.0.1`) — the `v` prefix is REQUIRED, BRAT ignores tags without it
 5. **Push** commits AND tag: `git push origin main --tags`
 6. **Install to vault**: `cp main.js manifest.json styles.css ~/JoshOS/.obsidian/plugins/blog-publisher/`
 7. **Reload Obsidian** to pick up changes
