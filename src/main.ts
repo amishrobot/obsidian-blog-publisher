@@ -11,6 +11,8 @@ export default class BlogPublisherPlugin extends Plugin {
   settings: BlogPublisherSettings;
   checksService: ChecksService;
   private configService: ConfigService;
+  private refreshFastTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshSettledTimer: ReturnType<typeof setTimeout> | null = null;
 
   async onload() {
     console.log('Loading Blog Publisher v2');
@@ -50,21 +52,19 @@ export default class BlogPublisherPlugin extends Plugin {
     // Refresh panel when active file changes
     this.registerEvent(
       this.app.workspace.on('file-open', (file) => {
-        if (file instanceof TFile) {
-          this.refreshView(file);
-        } else {
-          // Obsidian can fire file-open with null/stale during transitions.
-          // Retry from active file on next tick.
-          setTimeout(() => this.refreshView(), 0);
-        }
-        // Additional delayed refresh to recover from cross-pane timing races.
-        setTimeout(() => this.refreshView(), 40);
+        this.scheduleRefresh((file as TFile | null) ?? null);
       })
     );
 
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => {
-        setTimeout(() => this.refreshView(), 20);
+        this.scheduleRefresh();
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        this.scheduleRefresh();
       })
     );
 
@@ -74,7 +74,7 @@ export default class BlogPublisherPlugin extends Plugin {
       this.app.vault.on('modify', (file) => {
         if (!(file instanceof TFile) || !this.isPostFile(file)) return;
         if (modifyTimeout) clearTimeout(modifyTimeout);
-        modifyTimeout = setTimeout(() => this.refreshView(), 500);
+        modifyTimeout = setTimeout(() => this.scheduleRefresh(file), 500);
       })
     );
 
@@ -83,6 +83,8 @@ export default class BlogPublisherPlugin extends Plugin {
   }
 
   async onunload() {
+    if (this.refreshFastTimer) clearTimeout(this.refreshFastTimer);
+    if (this.refreshSettledTimer) clearTimeout(this.refreshSettledTimer);
     console.log('Unloading Blog Publisher v2');
   }
 
@@ -117,8 +119,20 @@ export default class BlogPublisherPlugin extends Plugin {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_BLOG_PUBLISHER);
     for (const leaf of leaves) {
       const view = leaf.view as PublishView;
-      if (view?.refresh) view.refresh(file ?? undefined);
+      if (view?.refresh) view.refresh(file);
     }
+  }
+
+  private scheduleRefresh(file?: TFile | null) {
+    if (this.refreshFastTimer) clearTimeout(this.refreshFastTimer);
+    if (this.refreshSettledTimer) clearTimeout(this.refreshSettledTimer);
+
+    // Immediate refresh (event payload if present).
+    this.refreshView(file);
+
+    // Follow-up refreshes use the actual active file after workspace settles.
+    this.refreshFastTimer = setTimeout(() => this.refreshView(), 75);
+    this.refreshSettledTimer = setTimeout(() => this.refreshView(), 250);
   }
 
   // ── Publishing methods (called by PublishView) ──────────────────

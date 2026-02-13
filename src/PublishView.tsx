@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, parseYaml } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, parseYaml, normalizePath } from 'obsidian';
 import { h, render } from 'preact';
 import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
@@ -37,71 +37,77 @@ export class PublishView extends ItemView {
     render(null, container);
   }
 
-  async refresh(explicitFile?: TFile, retry = 0) {
-    const file = this.resolveCurrentPostFile(explicitFile);
+  async refresh(explicitFile?: TFile | null) {
     const container = this.containerEl.children[1] as HTMLElement;
+    try {
+      const file = this.resolveCurrentPostFile(explicitFile);
 
-    if (!file) {
-      if (retry < 2) {
-        setTimeout(() => this.refresh(undefined, retry + 1), 30 * (retry + 1));
+      if (!file) {
+        render(
+          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post to see publishing controls.'),
+          container
+        );
+        return;
       }
-      container.empty();
-      container.innerHTML = '<div style="padding:20px;color:#888;font-size:13px;">Open a blog post to see publishing controls.</div>';
-      return;
+
+      const post = await this.buildPostState(file);
+
+      // Capture a snapshot of the state when we first see a file.
+      // This frozen "saved" state represents what's currently published.
+      // It only gets updated after a successful publish/unpublish.
+      if (!this.savedStates.has(file.path)) {
+        this.savedStates.set(file.path, { ...post });
+      }
+      const saved = this.savedStates.get(file.path)!;
+      const currentTheme = await this.getCurrentThemeSafe();
+      const settings = {
+        ...this.plugin.settings,
+        themes: this.orderThemes(this.plugin.settings.themes, currentTheme),
+      };
+
+      render(
+        h(PublishPanel, {
+          post,
+          saved,
+          settings,
+          onStatusChange: (status: string) => this.handleStatusChange(file, status),
+          onThemeChange: (theme: string) => this.handleThemeChange(theme),
+          onSlugChange: (slug: string) => this.handleSlugChange(file, slug),
+          onTagsChange: (tags: string[]) => this.handleTagsChange(file, tags),
+          onPublish: () => this.handlePublish(file),
+          onUnpublish: () => this.handleUnpublish(file),
+          onRunChecks: () => this.handleRunChecks(file),
+          onOpenDeployHistory: () => this.handleOpenDeployHistory(),
+        }),
+        container
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      render(
+        h('div', { style: 'padding:20px;color:#e06c75;font-size:12px;white-space:pre-wrap;' }, `Publish panel error: ${message}`),
+        container
+      );
+      console.error('Publish panel refresh failed:', error);
     }
-
-    const post = await this.buildPostState(file);
-
-    // Capture a snapshot of the state when we first see a file.
-    // This frozen "saved" state represents what's currently published.
-    // It only gets updated after a successful publish/unpublish.
-    if (!this.savedStates.has(file.path)) {
-      this.savedStates.set(file.path, { ...post });
-    }
-    const saved = this.savedStates.get(file.path)!;
-    const currentTheme = await this.getCurrentThemeSafe();
-    const settings = {
-      ...this.plugin.settings,
-      themes: this.orderThemes(this.plugin.settings.themes, currentTheme),
-    };
-
-    render(
-      h(PublishPanel, {
-        post,
-        saved,
-        settings,
-        onStatusChange: (status: string) => this.handleStatusChange(file, status),
-        onThemeChange: (theme: string) => this.handleThemeChange(theme),
-        onSlugChange: (slug: string) => this.handleSlugChange(file, slug),
-        onTagsChange: (tags: string[]) => this.handleTagsChange(file, tags),
-        onPublish: () => this.handlePublish(file),
-        onUnpublish: () => this.handleUnpublish(file),
-        onRunChecks: () => this.handleRunChecks(file),
-        onOpenDeployHistory: () => this.handleOpenDeployHistory(),
-      }),
-      container
-    );
   }
 
-  private isPostFile(file: TFile): boolean {
-    const folder = this.plugin.settings.postsFolder.replace(/\/$/, '');
-    return file.path.startsWith(folder + '/') && file.path.endsWith('.md');
+  private isPostFile(file: { path: string }): boolean {
+    const normalizedFolder = normalizePath(this.plugin.settings.postsFolder).replace(/\/$/, '');
+    const normalizedPath = normalizePath(file.path);
+    return normalizedPath.startsWith(normalizedFolder + '/') && normalizedPath.endsWith('.md');
   }
 
-  private resolveCurrentPostFile(explicitFile?: TFile): TFile | null {
+  private resolveCurrentPostFile(explicitFile?: TFile | null): TFile | null {
+    if (explicitFile === null) return null;
+
+    // If the caller provides the current file, treat it as authoritative.
+    if (explicitFile instanceof TFile) {
+      return this.isPostFile(explicitFile) ? explicitFile : null;
+    }
+
     const active = this.app.workspace.getActiveFile();
-    const recentLeaf = this.app.workspace.getMostRecentLeaf();
-    const recentFile =
-      recentLeaf && 'file' in (recentLeaf.view as object)
-        ? ((recentLeaf.view as { file?: TFile }).file ?? null)
-        : null;
-
-    const candidates = [explicitFile, active, recentFile].filter(
-      (file): file is TFile => file instanceof TFile
-    );
-
-    for (const file of candidates) {
-      if (this.isPostFile(file)) return file;
+    if (active instanceof TFile && this.isPostFile(active)) {
+      return active;
     }
 
     return null;

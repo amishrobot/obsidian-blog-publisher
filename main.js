@@ -1430,59 +1430,66 @@ var PublishView = class extends import_obsidian.ItemView {
     const container = this.containerEl.children[1];
     G(null, container);
   }
-  async refresh(explicitFile, retry = 0) {
-    const file = this.resolveCurrentPostFile(explicitFile);
+  async refresh(explicitFile) {
     const container = this.containerEl.children[1];
-    if (!file) {
-      if (retry < 2) {
-        setTimeout(() => this.refresh(void 0, retry + 1), 30 * (retry + 1));
+    try {
+      const file = this.resolveCurrentPostFile(explicitFile);
+      if (!file) {
+        G(
+          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post to see publishing controls."),
+          container
+        );
+        return;
       }
-      container.empty();
-      container.innerHTML = '<div style="padding:20px;color:#888;font-size:13px;">Open a blog post to see publishing controls.</div>';
-      return;
+      const post = await this.buildPostState(file);
+      if (!this.savedStates.has(file.path)) {
+        this.savedStates.set(file.path, { ...post });
+      }
+      const saved = this.savedStates.get(file.path);
+      const currentTheme = await this.getCurrentThemeSafe();
+      const settings = {
+        ...this.plugin.settings,
+        themes: this.orderThemes(this.plugin.settings.themes, currentTheme)
+      };
+      G(
+        _(PublishPanel, {
+          post,
+          saved,
+          settings,
+          onStatusChange: (status) => this.handleStatusChange(file, status),
+          onThemeChange: (theme) => this.handleThemeChange(theme),
+          onSlugChange: (slug) => this.handleSlugChange(file, slug),
+          onTagsChange: (tags) => this.handleTagsChange(file, tags),
+          onPublish: () => this.handlePublish(file),
+          onUnpublish: () => this.handleUnpublish(file),
+          onRunChecks: () => this.handleRunChecks(file),
+          onOpenDeployHistory: () => this.handleOpenDeployHistory()
+        }),
+        container
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      G(
+        _("div", { style: "padding:20px;color:#e06c75;font-size:12px;white-space:pre-wrap;" }, `Publish panel error: ${message}`),
+        container
+      );
+      console.error("Publish panel refresh failed:", error);
     }
-    const post = await this.buildPostState(file);
-    if (!this.savedStates.has(file.path)) {
-      this.savedStates.set(file.path, { ...post });
-    }
-    const saved = this.savedStates.get(file.path);
-    const currentTheme = await this.getCurrentThemeSafe();
-    const settings = {
-      ...this.plugin.settings,
-      themes: this.orderThemes(this.plugin.settings.themes, currentTheme)
-    };
-    G(
-      _(PublishPanel, {
-        post,
-        saved,
-        settings,
-        onStatusChange: (status) => this.handleStatusChange(file, status),
-        onThemeChange: (theme) => this.handleThemeChange(theme),
-        onSlugChange: (slug) => this.handleSlugChange(file, slug),
-        onTagsChange: (tags) => this.handleTagsChange(file, tags),
-        onPublish: () => this.handlePublish(file),
-        onUnpublish: () => this.handleUnpublish(file),
-        onRunChecks: () => this.handleRunChecks(file),
-        onOpenDeployHistory: () => this.handleOpenDeployHistory()
-      }),
-      container
-    );
   }
   isPostFile(file) {
-    const folder = this.plugin.settings.postsFolder.replace(/\/$/, "");
-    return file.path.startsWith(folder + "/") && file.path.endsWith(".md");
+    const normalizedFolder = (0, import_obsidian.normalizePath)(this.plugin.settings.postsFolder).replace(/\/$/, "");
+    const normalizedPath = (0, import_obsidian.normalizePath)(file.path);
+    return normalizedPath.startsWith(normalizedFolder + "/") && normalizedPath.endsWith(".md");
   }
   resolveCurrentPostFile(explicitFile) {
-    var _a;
+    if (explicitFile === null)
+      return null;
+    if (explicitFile instanceof import_obsidian.TFile) {
+      return this.isPostFile(explicitFile) ? explicitFile : null;
+    }
     const active = this.app.workspace.getActiveFile();
-    const recentLeaf = this.app.workspace.getMostRecentLeaf();
-    const recentFile = recentLeaf && "file" in recentLeaf.view ? (_a = recentLeaf.view.file) != null ? _a : null : null;
-    const candidates = [explicitFile, active, recentFile].filter(
-      (file) => file instanceof import_obsidian.TFile
-    );
-    for (const file of candidates) {
-      if (this.isPostFile(file))
-        return file;
+    if (active instanceof import_obsidian.TFile && this.isPostFile(active)) {
+      return active;
     }
     return null;
   }
@@ -2177,6 +2184,11 @@ var SettingsTab = class extends import_obsidian5.PluginSettingTab {
 
 // src/main.ts
 var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
+  constructor() {
+    super(...arguments);
+    this.refreshFastTimer = null;
+    this.refreshSettledTimer = null;
+  }
   async onload() {
     console.log("Loading Blog Publisher v2");
     await this.loadSettings();
@@ -2207,17 +2219,17 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
-        if (file instanceof import_obsidian6.TFile) {
-          this.refreshView(file);
-        } else {
-          setTimeout(() => this.refreshView(), 0);
-        }
-        setTimeout(() => this.refreshView(), 40);
+        this.scheduleRefresh(file != null ? file : null);
       })
     );
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
-        setTimeout(() => this.refreshView(), 20);
+        this.scheduleRefresh();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.scheduleRefresh();
       })
     );
     let modifyTimeout = null;
@@ -2227,12 +2239,16 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
           return;
         if (modifyTimeout)
           clearTimeout(modifyTimeout);
-        modifyTimeout = setTimeout(() => this.refreshView(), 500);
+        modifyTimeout = setTimeout(() => this.scheduleRefresh(file), 500);
       })
     );
     this.addSettingTab(new SettingsTab(this.app, this));
   }
   async onunload() {
+    if (this.refreshFastTimer)
+      clearTimeout(this.refreshFastTimer);
+    if (this.refreshSettledTimer)
+      clearTimeout(this.refreshSettledTimer);
     console.log("Unloading Blog Publisher v2");
   }
   isPostFile(file) {
@@ -2263,8 +2279,17 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     for (const leaf of leaves) {
       const view = leaf.view;
       if (view == null ? void 0 : view.refresh)
-        view.refresh(file != null ? file : void 0);
+        view.refresh(file);
     }
+  }
+  scheduleRefresh(file) {
+    if (this.refreshFastTimer)
+      clearTimeout(this.refreshFastTimer);
+    if (this.refreshSettledTimer)
+      clearTimeout(this.refreshSettledTimer);
+    this.refreshView(file);
+    this.refreshFastTimer = setTimeout(() => this.refreshView(), 75);
+    this.refreshSettledTimer = setTimeout(() => this.refreshView(), 250);
   }
   // ── Publishing methods (called by PublishView) ──────────────────
   async publishFile(file) {
