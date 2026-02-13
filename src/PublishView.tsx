@@ -37,11 +37,14 @@ export class PublishView extends ItemView {
     render(null, container);
   }
 
-  async refresh() {
-    const file = this.app.workspace.getActiveFile();
+  async refresh(explicitFile?: TFile, retry = 0) {
+    const file = this.resolveCurrentPostFile(explicitFile);
     const container = this.containerEl.children[1] as HTMLElement;
 
-    if (!file || !this.isPostFile(file)) {
+    if (!file) {
+      if (retry < 2) {
+        setTimeout(() => this.refresh(undefined, retry + 1), 30 * (retry + 1));
+      }
       container.empty();
       container.innerHTML = '<div style="padding:20px;color:#888;font-size:13px;">Open a blog post to see publishing controls.</div>';
       return;
@@ -56,7 +59,11 @@ export class PublishView extends ItemView {
       this.savedStates.set(file.path, { ...post });
     }
     const saved = this.savedStates.get(file.path)!;
-    const settings = this.plugin.settings;
+    const currentTheme = await this.getCurrentThemeSafe();
+    const settings = {
+      ...this.plugin.settings,
+      themes: this.orderThemes(this.plugin.settings.themes, currentTheme),
+    };
 
     render(
       h(PublishPanel, {
@@ -79,6 +86,25 @@ export class PublishView extends ItemView {
   private isPostFile(file: TFile): boolean {
     const folder = this.plugin.settings.postsFolder.replace(/\/$/, '');
     return file.path.startsWith(folder + '/') && file.path.endsWith('.md');
+  }
+
+  private resolveCurrentPostFile(explicitFile?: TFile): TFile | null {
+    const active = this.app.workspace.getActiveFile();
+    const recentLeaf = this.app.workspace.getMostRecentLeaf();
+    const recentFile =
+      recentLeaf && 'file' in (recentLeaf.view as object)
+        ? ((recentLeaf.view as { file?: TFile }).file ?? null)
+        : null;
+
+    const candidates = [explicitFile, active, recentFile].filter(
+      (file): file is TFile => file instanceof TFile
+    );
+
+    for (const file of candidates) {
+      if (this.isPostFile(file)) return file;
+    }
+
+    return null;
   }
 
   private async buildPostState(file: TFile): Promise<PostState> {
@@ -118,8 +144,45 @@ export class PublishView extends ItemView {
     const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
     if (themeFile instanceof TFile) {
       await this.app.vault.modify(themeFile, `---\ntheme: ${theme}\n---\n`);
+      await this.plugin.publishThemeSetting(theme);
     }
     await this.refresh();
+  }
+
+  private async getCurrentThemeSafe(): Promise<string> {
+    try {
+      return await this.getCurrentTheme();
+    } catch {
+      return this.plugin.settings.themes[0] || 'classic';
+    }
+  }
+
+  private async getCurrentTheme(): Promise<string> {
+    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
+    if (!(themeFile instanceof TFile)) return this.plugin.settings.themes[0] || 'classic';
+
+    const content = await this.app.vault.read(themeFile);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (parseYaml(fmMatch[1]) || {}) : {};
+    const fromFm = String(fm.theme || '').trim().toLowerCase();
+    if (fromFm) return fromFm;
+
+    const kvMatch = content.match(/^theme\s*:\s*["']?([^"'#\r\n]+)["']?\s*$/m);
+    return kvMatch?.[1]?.trim().toLowerCase() || this.plugin.settings.themes[0] || 'classic';
+  }
+
+  private orderThemes(themes: string[], currentTheme: string): string[] {
+    const normalizedCurrent = currentTheme.trim().toLowerCase();
+    const ordered: string[] = [];
+
+    if (normalizedCurrent) ordered.push(normalizedCurrent);
+    for (const theme of themes) {
+      const normalized = theme.trim().toLowerCase();
+      if (!normalized || ordered.includes(normalized)) continue;
+      ordered.push(normalized);
+    }
+
+    return ordered.length > 0 ? ordered : ['classic', 'paper', 'spruce', 'midnight', 'soviet'];
   }
 
   private async handleSlugChange(file: TFile, slug: string): Promise<void> {

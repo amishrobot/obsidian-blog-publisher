@@ -1,13 +1,17 @@
 {
   "name": "obsidian-blog-publisher",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Publish blog posts from Obsidian to GitHub with a visual side panel",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production"
   },
-  "keywords": ["obsidian", "blog", "publisher"],
+  "keywords": [
+    "obsidian",
+    "blog",
+    "publisher"
+  ],
   "author": "Josh Penrod",
   "license": "MIT",
   "devDependencies": {

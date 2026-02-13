@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   themePublishedHash: '',
   themePublishedCommit: '',
   siteUrl: 'https://amishrobot.com',
-  themes: ['classic', 'paper', 'spruce', 'midnight'],
+  themes: ['classic', 'paper', 'spruce', 'midnight', 'soviet'],
 };
 
 // ── Post Data ───────────────────────────────────────────────────────
@@ -140,6 +140,18 @@ export const THEME_PALETTES: Record<string, ThemePalette> = {
     tagBg: '#1c2330', tagText: '#8bb0d0', urlColor: '#58a6ff',
     chipBorder: '#21262d', chipSelectedBg: '#1c2330', chipSelectedBorder: '#58a6ff',
     overlayBg: '#111820', hoverBg: '#171d28',
+  },
+  soviet: {
+    label: 'Soviet',
+    dots: ['#0b1209', '#9ec39a', '#dfd17c'],
+    bg: '#0f1810', bgDeep: '#0a110a', bgSurface: '#162416',
+    border: '#2e4d2e', borderSubtle: '#1e331f',
+    text: '#c8dec1', textMuted: '#88a684', textFaint: '#557254',
+    accent: '#dfd17c', accentBg: '#dfd17c20', heading: '#dfe9d7',
+    inputBg: '#122013', inputBorder: '#335336',
+    tagBg: '#1f3120', tagText: '#a7c89f', urlColor: '#dfd17c',
+    chipBorder: '#335336', chipSelectedBg: '#274128', chipSelectedBorder: '#dfd17c',
+    overlayBg: '#1b2a1c', hoverBg: '#223523',
   },
 };
 

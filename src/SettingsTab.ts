@@ -107,10 +107,10 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Themes')
-      .setDesc('Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight)')
+      .setDesc('Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)')
       .addText((text) =>
         text
-          .setPlaceholder('classic,paper,spruce,midnight')
+          .setPlaceholder('classic,paper,spruce,midnight,soviet')
           .setValue(this.plugin.settings.themes.join(','))
           .onChange(async (value) => {
             this.plugin.settings.themes = value

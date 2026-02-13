@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useCallback, useMemo } from 'preact/hooks';
+import { useState, useCallback, useMemo, useEffect } from 'preact/hooks';
 import { PostState, BlogPublisherSettings, STATUS_CONFIG, THEME_PALETTES, CHECKS, Change, ThemePalette } from '../models/types';
 import { CheckResult } from '../services/ChecksService';
 import { StatusPill } from './StatusPill';
@@ -21,7 +21,7 @@ export interface PublishPanelProps {
   saved: PostState;
   settings: BlogPublisherSettings;
   onStatusChange: (status: string) => void;
-  onThemeChange: (theme: string) => void;
+  onThemeChange: (theme: string) => Promise<void>;
   onSlugChange: (slug: string) => void;
   onTagsChange: (tags: string[]) => void;
   onPublish: () => Promise<void>;
@@ -71,7 +71,10 @@ export function PublishPanel({
   const [selectedTheme, setSelectedTheme] = useState(settings.themes[0] || 'classic');
 
   const t = THEME_PALETTES[selectedTheme] || THEME_PALETTES.classic;
-  const themes = useMemo(() => settings.themes, [settings.themes]);
+  const themes = useMemo(() => {
+    const ids = settings.themes.filter((id) => id.trim().length > 0);
+    return ids.length > 0 ? ids : ['classic', 'paper', 'spruce', 'midnight', 'soviet'];
+  }, [settings.themes]);
   const changes = computeChanges(saved, post, settings.themes[0] || 'classic', selectedTheme);
   const hasChanges = changes.length > 0;
   const allChecksPassed = CHECKS.every((c) => checks[c.id] === true);
@@ -79,6 +82,11 @@ export function PublishPanel({
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
 
   const siteUrl = `amishrobot.com/${post.date.match(/^(\d{4})/)?.[1] || ''}/${post.slug}`;
+
+  useEffect(() => {
+    const liveTheme = settings.themes[0] || 'classic';
+    setSelectedTheme(liveTheme);
+  }, [settings.themes]);
 
   const showToast = useCallback((msg: string, color: string) => {
     setToastExiting(false);
@@ -149,7 +157,7 @@ export function PublishPanel({
     setPublishing(true);
     try {
       if (selectedTheme !== (settings.themes[0] || 'classic')) {
-        onThemeChange(selectedTheme);
+        await onThemeChange(selectedTheme);
       }
       await onPublish();
       const statusLabel = (STATUS_CONFIG[post.status]?.label || 'unknown').toLowerCase();
@@ -220,7 +228,7 @@ export function PublishPanel({
         <div style={{ height: 1, background: t.border, margin: '8px 0', transition: 'background 0.4s ease' }} />
 
         {/* Theme */}
-        <AnimatedSection title="Theme" t={t}>
+        <AnimatedSection title="Theme" collapsible defaultOpen={false} t={t}>
           <div style={{ marginBottom: 6 }}>
             <FieldRow label="Live theme" t={t}>
               <span style={{

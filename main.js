@@ -506,7 +506,7 @@ var DEFAULT_SETTINGS = {
   themePublishedHash: "",
   themePublishedCommit: "",
   siteUrl: "https://amishrobot.com",
-  themes: ["classic", "paper", "spruce", "midnight"]
+  themes: ["classic", "paper", "spruce", "midnight", "soviet"]
 };
 var STATUS_CONFIG = {
   draft: { label: "Draft", color: "#e5c07b", bg: "#e5c07b20", icon: "\u25CB", desc: "Work in progress" },
@@ -612,6 +612,31 @@ var THEME_PALETTES = {
     chipSelectedBorder: "#58a6ff",
     overlayBg: "#111820",
     hoverBg: "#171d28"
+  },
+  soviet: {
+    label: "Soviet",
+    dots: ["#0b1209", "#9ec39a", "#dfd17c"],
+    bg: "#0f1810",
+    bgDeep: "#0a110a",
+    bgSurface: "#162416",
+    border: "#2e4d2e",
+    borderSubtle: "#1e331f",
+    text: "#c8dec1",
+    textMuted: "#88a684",
+    textFaint: "#557254",
+    accent: "#dfd17c",
+    accentBg: "#dfd17c20",
+    heading: "#dfe9d7",
+    inputBg: "#122013",
+    inputBorder: "#335336",
+    tagBg: "#1f3120",
+    tagText: "#a7c89f",
+    urlColor: "#dfd17c",
+    chipBorder: "#335336",
+    chipSelectedBg: "#274128",
+    chipSelectedBorder: "#dfd17c",
+    overlayBg: "#1b2a1c",
+    hoverBg: "#223523"
   }
 };
 var CHECKS = [
@@ -668,7 +693,12 @@ function StatusPill({ status, selected, onClick, t: t3 }) {
 
 // src/components/ThemeChip.tsx
 function ThemeChip({ themeId, selected, onClick, t: t3 }) {
-  const palette = THEME_PALETTES[themeId];
+  const palette = THEME_PALETTES[themeId] || {
+    label: themeId.charAt(0).toUpperCase() + themeId.slice(1),
+    dots: [t3.textFaint, t3.textMuted, t3.accent],
+    chipSelectedBg: t3.chipSelectedBg,
+    chipSelectedBorder: t3.chipSelectedBorder
+  };
   const [hovered, hoverHandlers] = useHover();
   return /* @__PURE__ */ _(
     "button",
@@ -1220,13 +1250,20 @@ function PublishPanel({
   const [toastExiting, setToastExiting] = d2(false);
   const [selectedTheme, setSelectedTheme] = d2(settings.themes[0] || "classic");
   const t3 = THEME_PALETTES[selectedTheme] || THEME_PALETTES.classic;
-  const themes = T2(() => settings.themes, [settings.themes]);
+  const themes = T2(() => {
+    const ids = settings.themes.filter((id) => id.trim().length > 0);
+    return ids.length > 0 ? ids : ["classic", "paper", "spruce", "midnight", "soviet"];
+  }, [settings.themes]);
   const changes = computeChanges(saved, post, settings.themes[0] || "classic", selectedTheme);
   const hasChanges = changes.length > 0;
   const allChecksPassed = CHECKS.every((c3) => checks[c3.id] === true);
   const readingTime = Math.max(1, Math.ceil(post.wordCount / 238));
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
   const siteUrl = `amishrobot.com/${((_a = post.date.match(/^(\d{4})/)) == null ? void 0 : _a[1]) || ""}/${post.slug}`;
+  y2(() => {
+    const liveTheme = settings.themes[0] || "classic";
+    setSelectedTheme(liveTheme);
+  }, [settings.themes]);
   const showToast = q2((msg, color) => {
     setToastExiting(false);
     setToast({ msg, color });
@@ -1290,7 +1327,7 @@ function PublishPanel({
     setPublishing(true);
     try {
       if (selectedTheme !== (settings.themes[0] || "classic")) {
-        onThemeChange(selectedTheme);
+        await onThemeChange(selectedTheme);
       }
       await onPublish();
       const statusLabel = (((_b2 = STATUS_CONFIG[post.status]) == null ? void 0 : _b2.label) || "unknown").toLowerCase();
@@ -1330,7 +1367,7 @@ function PublishPanel({
     background: statusConfig.bg,
     border: `1px solid ${statusConfig.color}40`,
     transition: "all 0.25s ease"
-  } }, /* @__PURE__ */ _("span", { style: { fontSize: 8, color: statusConfig.color } }, statusConfig.icon), /* @__PURE__ */ _("span", { style: { fontSize: 10.5, color: statusConfig.color, fontWeight: 500 } }, statusConfig.label))), /* @__PURE__ */ _("div", { style: { flex: 1, overflowY: "auto", padding: "8px 14px 14px" } }, /* @__PURE__ */ _("div", { style: { padding: "8px 0 12px" } }, /* @__PURE__ */ _("div", { style: { fontSize: 14, fontWeight: 600, color: t3.heading, lineHeight: 1.35, transition: "color 0.4s ease" } }, post.title), /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textFaint, marginTop: 4, transition: "color 0.4s ease" } }, post.wordCount, " words ", "\xB7", " ", readingTime, " min read ", "\xB7", " ", post.type)), /* @__PURE__ */ _(AnimatedSection, { title: "Status", t: t3 }, /* @__PURE__ */ _("div", { style: { display: "flex", flexDirection: "column", gap: 3 } }, Object.keys(STATUS_CONFIG).map((s3) => /* @__PURE__ */ _(StatusPill, { key: s3, status: s3, selected: post.status === s3, onClick: () => onStatusChange(s3), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Theme", t: t3 }, /* @__PURE__ */ _("div", { style: { marginBottom: 6 } }, /* @__PURE__ */ _(FieldRow, { label: "Live theme", t: t3 }, /* @__PURE__ */ _("span", { style: {
+  } }, /* @__PURE__ */ _("span", { style: { fontSize: 8, color: statusConfig.color } }, statusConfig.icon), /* @__PURE__ */ _("span", { style: { fontSize: 10.5, color: statusConfig.color, fontWeight: 500 } }, statusConfig.label))), /* @__PURE__ */ _("div", { style: { flex: 1, overflowY: "auto", padding: "8px 14px 14px" } }, /* @__PURE__ */ _("div", { style: { padding: "8px 0 12px" } }, /* @__PURE__ */ _("div", { style: { fontSize: 14, fontWeight: 600, color: t3.heading, lineHeight: 1.35, transition: "color 0.4s ease" } }, post.title), /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textFaint, marginTop: 4, transition: "color 0.4s ease" } }, post.wordCount, " words ", "\xB7", " ", readingTime, " min read ", "\xB7", " ", post.type)), /* @__PURE__ */ _(AnimatedSection, { title: "Status", t: t3 }, /* @__PURE__ */ _("div", { style: { display: "flex", flexDirection: "column", gap: 3 } }, Object.keys(STATUS_CONFIG).map((s3) => /* @__PURE__ */ _(StatusPill, { key: s3, status: s3, selected: post.status === s3, onClick: () => onStatusChange(s3), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Theme", collapsible: true, defaultOpen: false, t: t3 }, /* @__PURE__ */ _("div", { style: { marginBottom: 6 } }, /* @__PURE__ */ _(FieldRow, { label: "Live theme", t: t3 }, /* @__PURE__ */ _("span", { style: {
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
@@ -1393,10 +1430,13 @@ var PublishView = class extends import_obsidian.ItemView {
     const container = this.containerEl.children[1];
     G(null, container);
   }
-  async refresh() {
-    const file = this.app.workspace.getActiveFile();
+  async refresh(explicitFile, retry = 0) {
+    const file = this.resolveCurrentPostFile(explicitFile);
     const container = this.containerEl.children[1];
-    if (!file || !this.isPostFile(file)) {
+    if (!file) {
+      if (retry < 2) {
+        setTimeout(() => this.refresh(void 0, retry + 1), 30 * (retry + 1));
+      }
       container.empty();
       container.innerHTML = '<div style="padding:20px;color:#888;font-size:13px;">Open a blog post to see publishing controls.</div>';
       return;
@@ -1406,7 +1446,11 @@ var PublishView = class extends import_obsidian.ItemView {
       this.savedStates.set(file.path, { ...post });
     }
     const saved = this.savedStates.get(file.path);
-    const settings = this.plugin.settings;
+    const currentTheme = await this.getCurrentThemeSafe();
+    const settings = {
+      ...this.plugin.settings,
+      themes: this.orderThemes(this.plugin.settings.themes, currentTheme)
+    };
     G(
       _(PublishPanel, {
         post,
@@ -1427,6 +1471,20 @@ var PublishView = class extends import_obsidian.ItemView {
   isPostFile(file) {
     const folder = this.plugin.settings.postsFolder.replace(/\/$/, "");
     return file.path.startsWith(folder + "/") && file.path.endsWith(".md");
+  }
+  resolveCurrentPostFile(explicitFile) {
+    var _a;
+    const active = this.app.workspace.getActiveFile();
+    const recentLeaf = this.app.workspace.getMostRecentLeaf();
+    const recentFile = recentLeaf && "file" in recentLeaf.view ? (_a = recentLeaf.view.file) != null ? _a : null : null;
+    const candidates = [explicitFile, active, recentFile].filter(
+      (file) => file instanceof import_obsidian.TFile
+    );
+    for (const file of candidates) {
+      if (this.isPostFile(file))
+        return file;
+    }
+    return null;
   }
   async buildPostState(file) {
     const content = await this.app.vault.read(file);
@@ -1461,8 +1519,43 @@ var PublishView = class extends import_obsidian.ItemView {
 theme: ${theme}
 ---
 `);
+      await this.plugin.publishThemeSetting(theme);
     }
     await this.refresh();
+  }
+  async getCurrentThemeSafe() {
+    try {
+      return await this.getCurrentTheme();
+    } catch (e3) {
+      return this.plugin.settings.themes[0] || "classic";
+    }
+  }
+  async getCurrentTheme() {
+    var _a;
+    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
+    if (!(themeFile instanceof import_obsidian.TFile))
+      return this.plugin.settings.themes[0] || "classic";
+    const content = await this.app.vault.read(themeFile);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const fm = fmMatch ? (0, import_obsidian.parseYaml)(fmMatch[1]) || {} : {};
+    const fromFm = String(fm.theme || "").trim().toLowerCase();
+    if (fromFm)
+      return fromFm;
+    const kvMatch = content.match(/^theme\s*:\s*["']?([^"'#\r\n]+)["']?\s*$/m);
+    return ((_a = kvMatch == null ? void 0 : kvMatch[1]) == null ? void 0 : _a.trim().toLowerCase()) || this.plugin.settings.themes[0] || "classic";
+  }
+  orderThemes(themes, currentTheme) {
+    const normalizedCurrent = currentTheme.trim().toLowerCase();
+    const ordered = [];
+    if (normalizedCurrent)
+      ordered.push(normalizedCurrent);
+    for (const theme of themes) {
+      const normalized = theme.trim().toLowerCase();
+      if (!normalized || ordered.includes(normalized))
+        continue;
+      ordered.push(normalized);
+    }
+    return ordered.length > 0 ? ordered : ["classic", "paper", "spruce", "midnight", "soviet"];
   }
   async handleSlugChange(file, slug) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -2073,8 +2166,8 @@ var SettingsTab = class extends import_obsidian5.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight)").addText(
-      (text) => text.setPlaceholder("classic,paper,spruce,midnight").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
+    new import_obsidian5.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)").addText(
+      (text) => text.setPlaceholder("classic,paper,spruce,midnight,soviet").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
         this.plugin.settings.themes = value.split(",").map((s3) => s3.trim()).filter((s3) => s3.length > 0);
         await this.plugin.saveSettings();
       })
@@ -2113,8 +2206,18 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
       }
     });
     this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        if (file instanceof import_obsidian6.TFile) {
+          this.refreshView(file);
+        } else {
+          setTimeout(() => this.refreshView(), 0);
+        }
+        setTimeout(() => this.refreshView(), 40);
+      })
+    );
+    this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
-        this.refreshView();
+        setTimeout(() => this.refreshView(), 20);
       })
     );
     let modifyTimeout = null;
@@ -2155,12 +2258,12 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
       workspace.revealLeaf(leaf);
     }
   }
-  refreshView() {
+  refreshView(file) {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_BLOG_PUBLISHER);
     for (const leaf of leaves) {
       const view = leaf.view;
       if (view == null ? void 0 : view.refresh)
-        view.refresh();
+        view.refresh(file != null ? file : void 0);
     }
   }
   // ── Publishing methods (called by PublishView) ──────────────────
@@ -2186,6 +2289,28 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
       delete fm.publishedCommit;
       delete fm.publishedHash;
     });
+  }
+  async publishThemeSetting(theme) {
+    const content = `---
+theme: ${theme}
+---
+`;
+    const githubService = new GitHubService(this.app, this.settings);
+    const remoteMatches = await githubService.fileContentEquals(
+      this.settings.themeRepoPath,
+      content
+    );
+    if (remoteMatches) {
+      return;
+    }
+    const commitSha = await githubService.publishTextFile(
+      this.settings.themeRepoPath,
+      content,
+      `Theme: ${theme}`
+    );
+    this.settings.themePublishedCommit = commitSha;
+    this.settings.themePublishedHash = "";
+    await this.saveSettings();
   }
   // ── Settings ────────────────────────────────────────────────────
   async loadSettings() {

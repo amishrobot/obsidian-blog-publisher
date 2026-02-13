@@ -49,8 +49,22 @@ export default class BlogPublisherPlugin extends Plugin {
 
     // Refresh panel when active file changes
     this.registerEvent(
+      this.app.workspace.on('file-open', (file) => {
+        if (file instanceof TFile) {
+          this.refreshView(file);
+        } else {
+          // Obsidian can fire file-open with null/stale during transitions.
+          // Retry from active file on next tick.
+          setTimeout(() => this.refreshView(), 0);
+        }
+        // Additional delayed refresh to recover from cross-pane timing races.
+        setTimeout(() => this.refreshView(), 40);
+      })
+    );
+
+    this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => {
-        this.refreshView();
+        setTimeout(() => this.refreshView(), 20);
       })
     );
 
@@ -99,11 +113,11 @@ export default class BlogPublisherPlugin extends Plugin {
     }
   }
 
-  private refreshView() {
+  private refreshView(file?: TFile | null) {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_BLOG_PUBLISHER);
     for (const leaf of leaves) {
       const view = leaf.view as PublishView;
-      if (view?.refresh) view.refresh();
+      if (view?.refresh) view.refresh(file ?? undefined);
     }
   }
 
@@ -135,6 +149,29 @@ export default class BlogPublisherPlugin extends Plugin {
       delete fm.publishedCommit;
       delete fm.publishedHash;
     });
+  }
+
+  async publishThemeSetting(theme: string): Promise<void> {
+    const content = `---\ntheme: ${theme}\n---\n`;
+    const githubService = new GitHubService(this.app, this.settings);
+
+    const remoteMatches = await githubService.fileContentEquals(
+      this.settings.themeRepoPath,
+      content
+    );
+    if (remoteMatches) {
+      return;
+    }
+
+    const commitSha = await githubService.publishTextFile(
+      this.settings.themeRepoPath,
+      content,
+      `Theme: ${theme}`
+    );
+
+    this.settings.themePublishedCommit = commitSha;
+    this.settings.themePublishedHash = '';
+    await this.saveSettings();
   }
 
   // ── Settings ────────────────────────────────────────────────────

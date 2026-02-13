@@ -10,7 +10,12 @@ interface ThemeChipProps {
 }
 
 export function ThemeChip({ themeId, selected, onClick, t }: ThemeChipProps) {
-  const palette = THEME_PALETTES[themeId];
+  const palette = THEME_PALETTES[themeId] || {
+    label: themeId.charAt(0).toUpperCase() + themeId.slice(1),
+    dots: [t.textFaint, t.textMuted, t.accent],
+    chipSelectedBg: t.chipSelectedBg,
+    chipSelectedBorder: t.chipSelectedBorder,
+  };
   const [hovered, hoverHandlers] = useHover();
   return (
     <button
