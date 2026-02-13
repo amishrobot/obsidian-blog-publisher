@@ -1,0 +1,139 @@
+import { App, TFile } from 'obsidian';
+import { BlogPublisherSettings, PostData, ImageData } from '../models/types';
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'bmp']);
+
+export class PostService {
+  private app: App;
+  private settings: BlogPublisherSettings;
+
+  constructor(app: App, settings: BlogPublisherSettings) {
+    this.app = app;
+    this.settings = settings;
+  }
+
+  async buildPostData(file: TFile): Promise<PostData> {
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache?.frontmatter) {
+      throw new Error('No frontmatter found');
+    }
+
+    const fm = cache.frontmatter;
+    if (!fm.title) throw new Error('Missing required frontmatter: title');
+    if (!fm.date) throw new Error('Missing required frontmatter: date');
+    if (!fm.slug) throw new Error('Missing required frontmatter: slug');
+
+    const title = String(fm.title);
+    const date = String(fm.date);
+    const slug = this.normalizeSlug(String(fm.slug));
+
+    const yearMatch = date.match(/^(\d{4})/);
+    if (!yearMatch) throw new Error(`Invalid date format: ${date}`);
+    const year = yearMatch[1];
+
+    const content = await this.app.vault.read(file);
+    const images = await this.resolveImages(content, year, slug);
+    const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
+    const publishedHash = await this.computeHash(transformedMarkdown, images);
+    const repoPostPath = `content/posts/${year}/${slug}.md`;
+
+    return {
+      title,
+      date,
+      year,
+      slug,
+      repoPostPath,
+      transformedMarkdown,
+      images,
+      publishedHash,
+    };
+  }
+
+  normalizeSlug(slug: string): string {
+    return slug
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  async resolveImages(content: string, year: string, slug: string): Promise<ImageData[]> {
+    const images: ImageData[] = [];
+    const usedFilenames = new Set<string>();
+    const re = /!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/g;
+    let match;
+
+    while ((match = re.exec(content)) !== null) {
+      const linkTarget = match[1].trim();
+      const ext = linkTarget.split('.').pop()?.toLowerCase() || '';
+      if (!IMAGE_EXTENSIONS.has(ext)) continue;
+
+      const resolved = this.app.metadataCache.getFirstLinkpathDest(linkTarget, '');
+      if (!resolved) {
+        throw new Error(`Image not found in vault: ${linkTarget}`);
+      }
+
+      let filename = resolved.name;
+      if (usedFilenames.has(filename.toLowerCase())) {
+        const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+        const fileExt = filename.substring(filename.lastIndexOf('.'));
+        let counter = 2;
+        while (usedFilenames.has(`${nameWithoutExt}-${counter}${fileExt}`.toLowerCase())) {
+          counter++;
+        }
+        filename = `${nameWithoutExt}-${counter}${fileExt}`;
+      }
+      usedFilenames.add(filename.toLowerCase());
+
+      images.push({
+        vaultPath: resolved.path,
+        filename,
+        repoPath: `public/_assets/images/${year}/${slug}/${filename}`,
+        originalWikilink: match[0],
+      });
+    }
+
+    return images;
+  }
+
+  rewriteImageLinks(content: string, images: ImageData[], year: string, slug: string): string {
+    let result = content;
+    for (const img of images) {
+      const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
+      const alt = altMatch?.[2]?.trim() || '';
+      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${img.filename})`;
+      result = result.replaceAll(img.originalWikilink, mdImage);
+    }
+    return result;
+  }
+
+  async computeHash(transformedMarkdown: string, images: ImageData[]): Promise<string> {
+    const parts = [transformedMarkdown];
+    const imageHashes: string[] = [];
+
+    for (const img of images) {
+      const file = this.app.vault.getAbstractFileByPath(img.vaultPath);
+      if (file instanceof TFile) {
+        const data = await this.app.vault.readBinary(file);
+        const hash = await this.hashArrayBuffer(data);
+        imageHashes.push(`${img.filename}:${hash}`);
+      }
+    }
+
+    imageHashes.sort();
+    parts.push(...imageHashes);
+    const combined = parts.join('\n');
+
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(combined);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  private async hashArrayBuffer(buffer: ArrayBuffer): Promise<string> {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+}
