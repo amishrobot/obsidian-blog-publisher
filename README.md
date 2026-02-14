@@ -79,6 +79,23 @@ If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior 
 - See full notes in `CHANGELOG.md`
 - `v2.0.10` exists but is superseded by `v2.0.11`
 
+## Regression Checklist
+
+Run this before every release:
+
+1. `npm run build` succeeds and updates `main.js`.
+2. `package.json` + `manifest.json` versions match.
+3. Vault plugin install has same version as repo manifest.
+4. BRAT release exists with assets: `main.js`, `manifest.json`, `styles.css`.
+5. Open published post in Obsidian panel: bottom action reads `Update` and is enabled.
+6. Edit a published post (slug/tag/content), click `Update`, and confirm new commit SHA in frontmatter.
+7. Verify live page content changed at the expected URL.
+8. Verify image rendering for filenames with spaces/special chars.
+9. Verify `date` auto-fills only when missing and does not overwrite existing dates.
+10. Verify multi-blog routing:
+   `Blogs/AmishRobot/posts` -> `amishrobot/amishrobot.com`
+   `Blogs/charming/posts` -> `joshpenrod/charmingweb`
+
 ## Tech Stack
 
 | Layer | Technology |

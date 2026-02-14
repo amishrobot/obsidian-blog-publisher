@@ -5,6 +5,7 @@
 - Published posts now show `Update` as the primary bottom action.
 - Bottom action stays enabled for published posts (no disabled `Live ✓` state).
 - Explicit panel `Unpublish` button removed.
+- Release hygiene follow-up: docs now include a regression checklist in `README.md`.
 
 ## v2.0.10 (2026-02-14)
 - Same UX intent as `v2.0.11`, but this tag/release was created on the wrong commit.
@@ -16,4 +17,3 @@
 - Improved checks and frontmatter handling (including auto-date fill when missing).
 - Publish stability improvements (serialized writes + stronger GitHub ref retry).
 - Image publish path hardening (filename sanitization + encoded markdown URLs).
-
