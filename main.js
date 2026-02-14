@@ -503,6 +503,7 @@ var DEFAULT_SETTINGS = {
   postsFolder: "Personal/Blog/posts",
   repoPostsPath: "content/posts",
   repoImagesPath: "public/_assets/images",
+  postUrlFormat: "year-slug",
   blogTargets: [],
   blogTargetsJson: "",
   themeFilePath: "Personal/Blog/settings/theme.md",
@@ -1181,6 +1182,36 @@ function DeployHistoryButton({ onClick, t: t3 }) {
   );
 }
 
+// src/utils/postUrl.ts
+function normalizeSiteUrl(siteUrl) {
+  return siteUrl.replace(/\/+$/, "");
+}
+function normalizeFormat(format) {
+  if (format === "posts-slug")
+    return "posts-slug";
+  return "year-slug";
+}
+function inferredFormat(settings) {
+  const configured = normalizeFormat((settings.postUrlFormat || "").trim());
+  if ((settings.postUrlFormat || "").trim().length > 0)
+    return configured;
+  const repoPostsPath = (settings.repoPostsPath || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (repoPostsPath === "src/content/posts")
+    return "posts-slug";
+  return "year-slug";
+}
+function buildPostUrl(settings, date, slug) {
+  var _a;
+  const base = normalizeSiteUrl(settings.siteUrl || "");
+  const year = ((_a = date.match(/^(\d{4})/)) == null ? void 0 : _a[1]) || "";
+  const safeSlug = String(slug || "").replace(/^\/+|\/+$/g, "");
+  const format = inferredFormat(settings);
+  if (format === "posts-slug") {
+    return `${base}/posts/${safeSlug}`;
+  }
+  return `${base}/${year}/${safeSlug}`;
+}
+
 // src/components/PublishPanel.tsx
 function computeChanges(saved, current, savedTheme, currentTheme) {
   var _a, _b, _c, _d;
@@ -1220,7 +1251,7 @@ function PublishPanel({
   onRunChecks,
   onOpenDeployHistory
 }) {
-  var _a, _b, _c;
+  var _a, _b;
   const [publishing, setPublishing] = d2(false);
   const [checks, setChecks] = d2({});
   const [justPassed, setJustPassed] = d2({});
@@ -1238,8 +1269,7 @@ function PublishPanel({
   const allChecksPassed = CHECKS.every((c3) => checks[c3.id] === true);
   const readingTime = Math.max(1, Math.ceil(post.wordCount / 238));
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
-  const normalizedSiteUrl = settings.siteUrl.replace(/\/+$/, "");
-  const siteUrl = `${normalizedSiteUrl}/${((_a = post.date.match(/^(\d{4})/)) == null ? void 0 : _a[1]) || ""}/${post.slug}`;
+  const siteUrl = buildPostUrl(settings, post.date, post.slug);
   y2(() => {
     const liveTheme = settings.themes[0] || "classic";
     setSelectedTheme(liveTheme);
@@ -1348,7 +1378,7 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_b = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _b.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_c = THEME_PALETTES[selectedTheme]) == null ? void 0 : _c.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
+  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
     ActionButton,
     {
       post,
@@ -1713,7 +1743,7 @@ var GitHubService = class {
         `Publish: ${postData.title}`
       )
     );
-    const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
+    const postUrl = buildPostUrl(this.settings, postData.date, postData.slug);
     return { commitSha, postUrl };
   }
   async unpublish(filePaths, title) {
@@ -2059,6 +2089,7 @@ var ConfigService = class {
     this.setStringValue(settings, "postsFolder", data.postsFolder);
     this.setStringValue(settings, "repoPostsPath", data.repoPostsPath);
     this.setStringValue(settings, "repoImagesPath", data.repoImagesPath);
+    this.setStringValue(settings, "postUrlFormat", data.postUrlFormat);
     this.setStringValue(settings, "blogTargetsJson", data.blogTargetsJson);
     this.setStringValue(settings, "themeFilePath", data.themeFilePath);
     this.setStringValue(settings, "themeRepoPath", data.themeRepoPath);
@@ -2103,6 +2134,8 @@ var ConfigService = class {
       target.repoPostsPath = row.repoPostsPath.trim();
     if (typeof row.repoImagesPath === "string" && row.repoImagesPath.trim().length > 0)
       target.repoImagesPath = row.repoImagesPath.trim();
+    if (typeof row.postUrlFormat === "string" && row.postUrlFormat.trim().length > 0)
+      target.postUrlFormat = row.postUrlFormat.trim();
     if (typeof row.themeFilePath === "string" && row.themeFilePath.trim().length > 0)
       target.themeFilePath = row.themeFilePath.trim();
     if (typeof row.themeRepoPath === "string" && row.themeRepoPath.trim().length > 0)
@@ -2209,6 +2242,12 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian6.Setting(containerEl).setName("Post URL format").setDesc("`year-slug` -> /YYYY/slug, `posts-slug` -> /posts/slug").addText(
+      (text) => text.setPlaceholder("year-slug").setValue(this.plugin.settings.postUrlFormat || "year-slug").onChange(async (value) => {
+        this.plugin.settings.postUrlFormat = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_state/blog-config.md` is not present.").addTextArea(
       (text) => text.setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
         this.plugin.settings.blogTargetsJson = value;
@@ -2288,7 +2327,7 @@ function isPostPath(path, settings) {
   return resolveTargetForPath(path, settings) !== null;
 }
 function getEffectiveSettingsForPath(path, settings) {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const target = resolveTargetForPath(path, settings);
   if (!target)
     return settings;
@@ -2299,9 +2338,10 @@ function getEffectiveSettingsForPath(path, settings) {
     postsFolder: target.postsFolder || settings.postsFolder,
     repoPostsPath: (_c = target.repoPostsPath) != null ? _c : settings.repoPostsPath,
     repoImagesPath: (_d = target.repoImagesPath) != null ? _d : settings.repoImagesPath,
-    themeFilePath: (_e = target.themeFilePath) != null ? _e : settings.themeFilePath,
-    themeRepoPath: (_f = target.themeRepoPath) != null ? _f : settings.themeRepoPath,
-    siteUrl: (_g = target.siteUrl) != null ? _g : settings.siteUrl,
+    postUrlFormat: (_e = target.postUrlFormat) != null ? _e : settings.postUrlFormat,
+    themeFilePath: (_f = target.themeFilePath) != null ? _f : settings.themeFilePath,
+    themeRepoPath: (_g = target.themeRepoPath) != null ? _g : settings.themeRepoPath,
+    siteUrl: (_h = target.siteUrl) != null ? _h : settings.siteUrl,
     themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes
   };
 }

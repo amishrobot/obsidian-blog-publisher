@@ -14,6 +14,7 @@ import { ChangeRow } from './ChangeRow';
 import { ActionButton } from './ActionButton';
 import { HoverButton } from './HoverButton';
 import { DeployHistoryButton } from './DeployHistoryButton';
+import { buildPostUrl } from '../utils/postUrl';
 
 export interface PublishPanelProps {
   post: PostState;
@@ -78,8 +79,7 @@ export function PublishPanel({
   const readingTime = Math.max(1, Math.ceil(post.wordCount / 238));
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
 
-  const normalizedSiteUrl = settings.siteUrl.replace(/\/+$/, '');
-  const siteUrl = `${normalizedSiteUrl}/${post.date.match(/^(\d{4})/)?.[1] || ''}/${post.slug}`;
+  const siteUrl = buildPostUrl(settings, post.date, post.slug);
 
   useEffect(() => {
     const liveTheme = settings.themes[0] || 'classic';

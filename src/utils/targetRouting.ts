@@ -68,6 +68,7 @@ export function getEffectiveSettingsForPath(
     postsFolder: target.postsFolder || settings.postsFolder,
     repoPostsPath: target.repoPostsPath ?? settings.repoPostsPath,
     repoImagesPath: target.repoImagesPath ?? settings.repoImagesPath,
+    postUrlFormat: target.postUrlFormat ?? settings.postUrlFormat,
     themeFilePath: target.themeFilePath ?? settings.themeFilePath,
     themeRepoPath: target.themeRepoPath ?? settings.themeRepoPath,
     siteUrl: target.siteUrl ?? settings.siteUrl,

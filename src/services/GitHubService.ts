@@ -1,5 +1,6 @@
 import { App, TFile, requestUrl } from 'obsidian';
 import { BlogPublisherSettings, PostData } from '../models/types';
+import { buildPostUrl } from '../utils/postUrl';
 
 interface GitTreeEntry {
   path: string;
@@ -36,7 +37,7 @@ export class GitHubService {
           `Publish: ${postData.title}`
         )
     );
-    const postUrl = `${this.settings.siteUrl}/${postData.year}/${postData.slug}`;
+    const postUrl = buildPostUrl(this.settings, postData.date, postData.slug);
     return { commitSha, postUrl };
   }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0.14 (2026-02-14)
+- Fixed Charming target documentation to use the correct repo slug: `amishrobot/charmingweb`.
+- Added configurable post URL format (`postUrlFormat`) with support for:
+  - `year-slug` -> `/YYYY/slug`
+  - `posts-slug` -> `/posts/slug`
+- Updated URL preview and publish result URL generation to use the configured format.
+- Added URL builder tests to prevent route-shape regressions.
+
 ## v2.0.13 (2026-02-14)
 - Added deterministic routing test suite (`vitest`) for multi-site + legacy fallback behavior.
 - Added path-routing utility and wired plugin routing through it.

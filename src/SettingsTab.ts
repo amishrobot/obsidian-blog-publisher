@@ -93,6 +93,19 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Post URL format')
+      .setDesc('`year-slug` -> /YYYY/slug, `posts-slug` -> /posts/slug')
+      .addText((text) =>
+        text
+          .setPlaceholder('year-slug')
+          .setValue(this.plugin.settings.postUrlFormat || 'year-slug')
+          .onChange(async (value) => {
+            this.plugin.settings.postUrlFormat = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Blog targets (JSON)')
       .setDesc('Optional per-folder routing. Used when `_state/blog-config.md` is not present.')
       .addTextArea((text) =>

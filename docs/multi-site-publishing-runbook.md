@@ -45,11 +45,12 @@ blogTargets:
     themeRepoPath: content/settings/theme.md
   - name: Charming
     postsFolder: Blogs/Charming/posts
-    repository: amishrobot/charmingweb.com
+    repository: amishrobot/charmingweb
     branch: main
     siteUrl: https://thischarmingweb.com
     repoPostsPath: src/content/posts
     repoImagesPath: public/_assets/images
+    postUrlFormat: posts-slug
     themeFilePath: Blogs/Charming/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
@@ -57,7 +58,7 @@ blogTargets:
 Notes:
 
 - `postsFolder` is required per target.
-- `repository`, `branch`, `siteUrl`, `repoPostsPath`, `repoImagesPath`, and theme fields fall back to global settings when omitted.
+- `repository`, `branch`, `siteUrl`, `repoPostsPath`, `repoImagesPath`, `postUrlFormat`, and theme fields fall back to global settings when omitted.
 - `blogTargetsJson` is supported as JSON fallback when state-file YAML is unavailable.
 
 ## Publish/Update Flow

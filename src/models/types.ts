@@ -7,6 +7,7 @@ export interface BlogPublisherSettings {
   postsFolder: string;
   repoPostsPath: string;
   repoImagesPath: string;
+  postUrlFormat: string;
   blogTargets: BlogTargetSettings[];
   blogTargetsJson: string;
   themeFilePath: string;
@@ -24,6 +25,7 @@ export interface BlogTargetSettings {
   branch?: string;
   repoPostsPath?: string;
   repoImagesPath?: string;
+  postUrlFormat?: string;
   themeFilePath?: string;
   themeRepoPath?: string;
   siteUrl?: string;
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   postsFolder: 'Personal/Blog/posts',
   repoPostsPath: 'content/posts',
   repoImagesPath: 'public/_assets/images',
+  postUrlFormat: 'year-slug',
   blogTargets: [],
   blogTargetsJson: '',
   themeFilePath: 'Personal/Blog/settings/theme.md',

@@ -9,6 +9,7 @@ const baseSettings: BlogPublisherSettings = {
   postsFolder: 'Blogs/AmishRobot/posts',
   repoPostsPath: 'content/posts',
   repoImagesPath: 'public/_assets/images',
+  postUrlFormat: 'year-slug',
   blogTargets: [
     {
       name: 'AmishRobot',
@@ -16,14 +17,16 @@ const baseSettings: BlogPublisherSettings = {
       repository: 'amishrobot/amishrobot.com',
       siteUrl: 'https://amishrobot.com',
       repoPostsPath: 'content/posts',
+      postUrlFormat: 'year-slug',
     },
     {
       name: 'Charming',
       postsFolder: 'Blogs/Charming/posts',
-      repository: 'amishrobot/charmingweb.com',
+      repository: 'amishrobot/charmingweb',
       siteUrl: 'https://thischarmingweb.com',
       repoPostsPath: 'src/content/posts',
       repoImagesPath: 'public/_assets/images',
+      postUrlFormat: 'posts-slug',
     },
   ],
   blogTargetsJson: '',
@@ -44,7 +47,7 @@ describe('target routing', () => {
 
   it('routes Charming post paths to Charming target', () => {
     const target = resolveTargetForPath('Blogs/Charming/posts/hello-world.md', baseSettings);
-    expect(target?.repository).toBe('amishrobot/charmingweb.com');
+    expect(target?.repository).toBe('amishrobot/charmingweb');
     expect(target?.postsFolder).toBe('Blogs/Charming/posts');
   });
 
@@ -65,9 +68,10 @@ describe('target routing', () => {
 
   it('selects effective publish settings for the matching target', () => {
     const effective = getEffectiveSettingsForPath('Blogs/Charming/posts/hello-world.md', baseSettings);
-    expect(effective.repository).toBe('amishrobot/charmingweb.com');
+    expect(effective.repository).toBe('amishrobot/charmingweb');
     expect(effective.siteUrl).toBe('https://thischarmingweb.com');
     expect(effective.postsFolder).toBe('Blogs/Charming/posts');
     expect(effective.repoPostsPath).toBe('src/content/posts');
+    expect(effective.postUrlFormat).toBe('posts-slug');
   });
 });

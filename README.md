@@ -67,11 +67,12 @@ blogTargets:
     themes: [classic, paper, spruce, midnight, soviet]
   - name: Charming
     postsFolder: Blogs/Charming/posts
-    repository: amishrobot/charmingweb.com
+    repository: amishrobot/charmingweb
     branch: main
     siteUrl: https://thischarmingweb.com
     repoPostsPath: src/content/posts
     repoImagesPath: public/_assets/images
+    postUrlFormat: posts-slug
     themeFilePath: Blogs/Charming/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
@@ -83,12 +84,15 @@ Routing rules:
 1. Exact target mapping by longest `blogTargets[].postsFolder` prefix.
 2. Legacy fallback remains supported for `Blog/posts/**` and `Personal/Blog/posts/**`.
 3. Unknown paths are not treated as publishable post paths.
+4. URL generation supports both styles:
+   `year-slug` -> `/YYYY/slug`
+   `posts-slug` -> `/posts/slug`
 
 Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.13`
+- Canonical current release: `v2.0.14`
 - See full notes in `CHANGELOG.md`
 - `v2.0.10` exists but is superseded by `v2.0.11+`
 
@@ -108,7 +112,7 @@ Run this before every release:
 10. Verify `date` auto-fills only when missing and does not overwrite existing dates.
 11. Verify multi-blog routing:
     `Blogs/AmishRobot/posts` -> `amishrobot/amishrobot.com`
-    `Blogs/Charming/posts` -> `amishrobot/charmingweb.com`
+    `Blogs/Charming/posts` -> `amishrobot/charmingweb`
 12. Verify legacy fallback routing:
     `Blog/posts` -> default target (AmishRobot).
 
