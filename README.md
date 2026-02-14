@@ -8,7 +8,7 @@ Built for [amishrobot.com](https://amishrobot.com).
 
 - **Side panel UI** — status, theme, slug, tags, URL preview, change tracking
 - **Publish** — pushes post markdown + images to GitHub via the git tree API; Vercel auto-deploys
-- **Unpublish** — removes the post from GitHub entirely
+- **Update-first published flow** — published posts can be updated directly via the bottom `Update` action
 - **Pre-publish checks** — validates frontmatter, slug format, links, and images before deploy
 - **Theme selection** — switch between site themes (Classic, Paper, Spruce, Midnight)
 - **Change tracking** — shows pending changes vs. last published state
@@ -72,6 +72,12 @@ blogTargets:
 ```
 
 If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior using `postsFolder`.
+
+## Releases
+
+- Canonical current release: `v2.0.11`
+- See full notes in `CHANGELOG.md`
+- `v2.0.10` exists but is superseded by `v2.0.11`
 
 ## Tech Stack
 

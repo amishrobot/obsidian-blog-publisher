@@ -17,9 +17,9 @@ Clicking "Publish" pushes the post markdown + images to the blog repo via GitHub
 - **Draft + Publish** → file exists on GitHub but site excludes it (not live)
 - **Published + Publish** → file on GitHub with `status: publish`, site renders it (live)
 
-### Unpublish = Delete from GitHub
+### Update Published Posts
 
-"Unpublish" deletes the post file (and its images) from the GitHub repo entirely. The file is removed from the git tree (`sha: null`). This is a hard removal — the post disappears from the site completely.
+Published posts are updated directly through the bottom `Update` action in the panel. You do not need to switch to Draft first just to push edits.
 
 ### Change Tracking
 
@@ -84,6 +84,12 @@ src/
 **WHY RELEASES MATTER:** This plugin is installed via BRAT (Beta Reviewers Auto-update Tester). BRAT requires a **GitHub Release** (not just a git tag) with `main.js`, `manifest.json`, and `styles.css` attached as assets. The tag MUST have a `v` prefix (e.g., `v2.0.1` not `2.0.1`). Missing any of these = invisible to BRAT = update never arrives in Obsidian.
 
 **DO NOT** overwrite `data.json` in the vault plugin directory — it contains the user's settings including the GitHub token.
+
+## Release Canon
+
+- Current canonical release: `v2.0.11`
+- `v2.0.10` was tagged on the wrong commit and is superseded.
+- Keep `CHANGELOG.md` updated for every release.
 
 ## Known Pitfalls
 
