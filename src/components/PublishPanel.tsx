@@ -12,7 +12,6 @@ import { SlugEditor } from './SlugEditor';
 import { UrlPreview } from './UrlPreview';
 import { ChangeRow } from './ChangeRow';
 import { ActionButton } from './ActionButton';
-import { ConfirmModal } from './ConfirmModal';
 import { HoverButton } from './HoverButton';
 import { DeployHistoryButton } from './DeployHistoryButton';
 
@@ -64,7 +63,6 @@ export function PublishPanel({
   const [checks, setChecks] = useState<Record<string, boolean | 'running'>>({});
   const [justPassed, setJustPassed] = useState<Record<string, boolean>>({});
   const [checksRunning, setChecksRunning] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null);
   const [toastExiting, setToastExiting] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState(settings.themes[0] || 'classic');
@@ -121,13 +119,7 @@ export function PublishPanel({
     showToast('All checks passed', '#98c379');
   }, [onRunChecks, showToast]);
 
-  const handlePublish = () => {
-    setShowConfirm(true);
-  };
-
-  const confirmAction = useCallback(async () => {
-    setShowConfirm(false);
-
+  const handlePublish = useCallback(async () => {
     // Run checks first
     setChecks({});
     setJustPassed({});
@@ -316,26 +308,12 @@ export function PublishPanel({
           <ActionButton
             post={post} saved={saved} hasChanges={hasChanges}
             publishing={publishing}
-            onPublish={handlePublish}
+            onPublish={() => { void handlePublish(); }}
             t={t}
           />
         </div>
         <DeployHistoryButton onClick={onOpenDeployHistory} t={t} />
       </div>
-
-      {/* Confirmation Overlay */}
-      {showConfirm && (
-        <ConfirmModal
-          changes={changes}
-          hasChanges={hasChanges}
-          title="Publish changes?"
-          description="This will run checks, update frontmatter, and trigger a deploy."
-          confirmLabel={post.status === 'publish' ? 'Update' : 'Publish'}
-          onConfirm={confirmAction}
-          onCancel={() => setShowConfirm(false)}
-          t={t}
-        />
-      )}
 
       {/* Toast */}
       {toast && (

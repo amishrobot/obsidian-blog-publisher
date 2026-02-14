@@ -1126,63 +1126,6 @@ function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 })
   );
 }
 
-// src/components/ConfirmModal.tsx
-function ConfirmButton({ label, onClick, bg, color, border }) {
-  const [hovered, hoverHandlers] = useHover();
-  return /* @__PURE__ */ _(
-    "button",
-    {
-      onClick,
-      ...hoverHandlers,
-      style: {
-        flex: 1,
-        padding: "8px",
-        borderRadius: 6,
-        border: border ? `1px solid ${border}` : "none",
-        background: bg,
-        color,
-        fontSize: 12,
-        fontWeight: border ? 400 : 600,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        transform: hovered ? "translateY(-1px)" : "none",
-        transition: "all 0.15s ease",
-        filter: hovered ? "brightness(1.1)" : "none"
-      }
-    },
-    label
-  );
-}
-function ConfirmModal({
-  changes,
-  hasChanges,
-  title,
-  description,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  t: t3
-}) {
-  return /* @__PURE__ */ _("div", { style: {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    zIndex: 10,
-    animation: "overlayIn 0.2s ease forwards",
-    background: "rgba(0,0,0,0.6)"
-  } }, /* @__PURE__ */ _("div", { style: {
-    background: t3.overlayBg,
-    borderRadius: 10,
-    padding: 20,
-    width: "100%",
-    border: `1px solid ${t3.border}`,
-    animation: "modalIn 0.25s ease"
-  } }, /* @__PURE__ */ _("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: t3.heading } }, title), /* @__PURE__ */ _("div", { style: { fontSize: 12, color: t3.textMuted, marginBottom: 12, lineHeight: 1.5 } }, description), hasChanges && /* @__PURE__ */ _("div", { style: { padding: "8px 10px", borderRadius: 6, background: t3.bgDeep, border: `1px solid ${t3.border}`, marginBottom: 12 } }, /* @__PURE__ */ _("div", { style: { fontSize: 10, color: t3.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 } }, "Changes"), changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))), /* @__PURE__ */ _("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ _(ConfirmButton, { label: "Cancel", onClick: onCancel, bg: "transparent", color: t3.textMuted, border: t3.border }), /* @__PURE__ */ _(ConfirmButton, { label: confirmLabel, onClick: onConfirm, bg: "#98c379", color: "#1e1e1e" }))));
-}
-
 // src/components/HoverButton.tsx
 function HoverButton({ onClick, t: t3, children }) {
   const [hovered, hoverHandlers] = useHover();
@@ -1280,7 +1223,6 @@ function PublishPanel({
   const [checks, setChecks] = d2({});
   const [justPassed, setJustPassed] = d2({});
   const [checksRunning, setChecksRunning] = d2(false);
-  const [showConfirm, setShowConfirm] = d2(false);
   const [toast, setToast] = d2(null);
   const [toastExiting, setToastExiting] = d2(false);
   const [selectedTheme, setSelectedTheme] = d2(settings.themes[0] || "classic");
@@ -1334,12 +1276,8 @@ function PublishPanel({
     setChecksRunning(false);
     showToast("All checks passed", "#98c379");
   }, [onRunChecks, showToast]);
-  const handlePublish = () => {
-    setShowConfirm(true);
-  };
-  const confirmAction = q2(async () => {
+  const handlePublish = q2(async () => {
     var _a2, _b2;
-    setShowConfirm(false);
     setChecks({});
     setJustPassed({});
     setChecksRunning(true);
@@ -1415,22 +1353,12 @@ function PublishPanel({
       saved,
       hasChanges,
       publishing,
-      onPublish: handlePublish,
+      onPublish: () => {
+        void handlePublish();
+      },
       t: t3
     }
-  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), showConfirm && /* @__PURE__ */ _(
-    ConfirmModal,
-    {
-      changes,
-      hasChanges,
-      title: "Publish changes?",
-      description: "This will run checks, update frontmatter, and trigger a deploy.",
-      confirmLabel: post.status === "publish" ? "Update" : "Publish",
-      onConfirm: confirmAction,
-      onCancel: () => setShowConfirm(false),
-      t: t3
-    }
-  ), toast && /* @__PURE__ */ _("div", { style: {
+  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), toast && /* @__PURE__ */ _("div", { style: {
     position: "absolute",
     bottom: 100,
     left: 14,

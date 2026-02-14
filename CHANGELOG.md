@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.12 (2026-02-14)
+- Removed publish/update confirmation modal.
+- Bottom action now triggers checks + deploy immediately on click.
+
 ## v2.0.11 (2026-02-14)
 - Canonical release for the "update-first" published workflow.
 - Published posts now show `Update` as the primary bottom action.
