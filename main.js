@@ -1058,7 +1058,7 @@ function ChangeRow({ change, t: t3 }) {
 // src/components/ActionButton.tsx
 function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 }) {
   const [hovered, hoverHandlers] = useHover();
-  const isLive = saved.status === "publish" && !hasChanges;
+  const isPublished = post.status === "publish";
   let label, bg, color, glow, onClick, disabled;
   if (publishing) {
     label = "Deploying";
@@ -1067,21 +1067,15 @@ function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 })
     glow = false;
     onClick = null;
     disabled = true;
-  } else if (isLive) {
-    label = "Live \u2713";
-    bg = t3.bgSurface;
-    color = t3.textFaint;
-    glow = false;
-    onClick = null;
-    disabled = true;
+  } else if (isPublished) {
+    label = hasChanges || saved.status === "publish" ? "Update" : "Publish";
+    bg = hovered ? "#88b86a" : "#98c379";
+    color = "#1e1e1e";
+    glow = true;
+    onClick = onPublish;
+    disabled = false;
   } else if (hasChanges) {
-    if (post.status === "publish" && saved.status === "publish") {
-      label = "Update Live Post";
-    } else if (post.status === "publish") {
-      label = "Publish Live";
-    } else {
-      label = "Save Draft";
-    }
+    label = "Save Draft";
     bg = hovered ? "#88b86a" : "#98c379";
     color = "#1e1e1e";
     glow = true;
@@ -1278,7 +1272,6 @@ function PublishPanel({
   onSlugChange,
   onTagsChange,
   onPublish,
-  onUnpublish,
   onRunChecks,
   onOpenDeployHistory
 }) {
@@ -1287,7 +1280,7 @@ function PublishPanel({
   const [checks, setChecks] = d2({});
   const [justPassed, setJustPassed] = d2({});
   const [checksRunning, setChecksRunning] = d2(false);
-  const [confirmMode, setConfirmMode] = d2(null);
+  const [showConfirm, setShowConfirm] = d2(false);
   const [toast, setToast] = d2(null);
   const [toastExiting, setToastExiting] = d2(false);
   const [selectedTheme, setSelectedTheme] = d2(settings.themes[0] || "classic");
@@ -1342,29 +1335,11 @@ function PublishPanel({
     showToast("All checks passed", "#98c379");
   }, [onRunChecks, showToast]);
   const handlePublish = () => {
-    setConfirmMode("publish");
-  };
-  const handleUnpublish = () => {
-    setConfirmMode("unpublish");
+    setShowConfirm(true);
   };
   const confirmAction = q2(async () => {
     var _a2, _b2;
-    const mode = confirmMode;
-    setConfirmMode(null);
-    if (!mode)
-      return;
-    if (mode === "unpublish") {
-      setPublishing(true);
-      try {
-        await onUnpublish();
-        showToast("Post unpublished (removed from live site)", "#e5c07b");
-      } catch (e3) {
-        showToast(`Unpublish failed: ${(e3 == null ? void 0 : e3.message) || e3}`, "#e06c75");
-      } finally {
-        setPublishing(false);
-      }
-      return;
-    }
+    setShowConfirm(false);
     setChecks({});
     setJustPassed({});
     setChecksRunning(true);
@@ -1400,7 +1375,7 @@ function PublishPanel({
     } finally {
       setPublishing(false);
     }
-  }, [confirmMode, onRunChecks, onPublish, onThemeChange, onUnpublish, selectedTheme, settings.themes, post.status, saved.status, showToast]);
+  }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, saved.status, showToast]);
   return /* @__PURE__ */ _("div", { style: {
     height: "100%",
     background: t3.bg,
@@ -1433,7 +1408,7 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_b = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _b.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_c = THEME_PALETTES[selectedTheme]) == null ? void 0 : _c.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, saved.status === "publish" && /* @__PURE__ */ _("div", { style: { marginBottom: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handleUnpublish, t: t3 }, "Unpublish")), /* @__PURE__ */ _(
+  } }, ((_b = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _b.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_c = THEME_PALETTES[selectedTheme]) == null ? void 0 : _c.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
     ActionButton,
     {
       post,
@@ -1443,16 +1418,16 @@ function PublishPanel({
       onPublish: handlePublish,
       t: t3
     }
-  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), confirmMode && /* @__PURE__ */ _(
+  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), showConfirm && /* @__PURE__ */ _(
     ConfirmModal,
     {
       changes,
-      hasChanges: confirmMode === "publish" && hasChanges,
-      title: confirmMode === "publish" ? "Publish changes?" : "Unpublish this post?",
-      description: confirmMode === "publish" ? "This will run checks, update frontmatter, and trigger a deploy." : "This removes the post (and its uploaded images) from the GitHub repo and live site.",
-      confirmLabel: confirmMode === "publish" ? "Publish" : "Unpublish",
+      hasChanges,
+      title: "Publish changes?",
+      description: "This will run checks, update frontmatter, and trigger a deploy.",
+      confirmLabel: post.status === "publish" ? "Update" : "Publish",
       onConfirm: confirmAction,
-      onCancel: () => setConfirmMode(null),
+      onCancel: () => setShowConfirm(false),
       t: t3
     }
   ), toast && /* @__PURE__ */ _("div", { style: {
@@ -1527,7 +1502,6 @@ var PublishView = class extends import_obsidian.ItemView {
           onSlugChange: (slug) => this.handleSlugChange(file, slug),
           onTagsChange: (tags) => this.handleTagsChange(file, tags),
           onPublish: () => this.handlePublish(file),
-          onUnpublish: () => this.handleUnpublish(file),
           onRunChecks: () => this.handleRunChecks(file),
           onOpenDeployHistory: () => this.handleOpenDeployHistory()
         }),
@@ -1643,12 +1617,6 @@ theme: ${theme}
   }
   async handlePublish(file) {
     await this.plugin.publishFile(file);
-    const newState = await this.buildPostState(file);
-    this.savedStates.set(file.path, { ...newState });
-    await this.refresh();
-  }
-  async handleUnpublish(file) {
-    await this.plugin.unpublishFile(file);
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
     await this.refresh();

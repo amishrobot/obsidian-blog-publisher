@@ -13,7 +13,7 @@ interface ActionButtonProps {
 
 export function ActionButton({ post, saved, hasChanges, publishing, onPublish, t }: ActionButtonProps) {
   const [hovered, hoverHandlers] = useHover();
-  const isLive = saved.status === 'publish' && !hasChanges;
+  const isPublished = post.status === 'publish';
 
   let label: string, bg: string, color: string, glow: boolean, onClick: (() => void) | null, disabled: boolean;
 
@@ -24,21 +24,15 @@ export function ActionButton({ post, saved, hasChanges, publishing, onPublish, t
     glow = false;
     onClick = null;
     disabled = true;
-  } else if (isLive) {
-    label = 'Live \u2713';
-    bg = t.bgSurface;
-    color = t.textFaint;
-    glow = false;
-    onClick = null;
-    disabled = true;
+  } else if (isPublished) {
+    label = hasChanges || saved.status === 'publish' ? 'Update' : 'Publish';
+    bg = hovered ? '#88b86a' : '#98c379';
+    color = '#1e1e1e';
+    glow = true;
+    onClick = onPublish;
+    disabled = false;
   } else if (hasChanges) {
-    if (post.status === 'publish' && saved.status === 'publish') {
-      label = 'Update Live Post';
-    } else if (post.status === 'publish') {
-      label = 'Publish Live';
-    } else {
-      label = 'Save Draft';
-    }
+    label = 'Save Draft';
     bg = hovered ? '#88b86a' : '#98c379';
     color = '#1e1e1e';
     glow = true;

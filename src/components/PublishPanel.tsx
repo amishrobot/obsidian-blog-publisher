@@ -25,7 +25,6 @@ export interface PublishPanelProps {
   onSlugChange: (slug: string) => void;
   onTagsChange: (tags: string[]) => void;
   onPublish: () => Promise<void>;
-  onUnpublish: () => Promise<void>;
   onRunChecks: () => Promise<Record<string, CheckResult>>;
   onOpenDeployHistory: () => void;
 }
@@ -59,13 +58,13 @@ function computeChanges(saved: PostState, current: PostState, savedTheme: string
 export function PublishPanel({
   post, saved, settings,
   onStatusChange, onThemeChange, onSlugChange, onTagsChange,
-  onPublish, onUnpublish, onRunChecks, onOpenDeployHistory,
+  onPublish, onRunChecks, onOpenDeployHistory,
 }: PublishPanelProps) {
   const [publishing, setPublishing] = useState(false);
   const [checks, setChecks] = useState<Record<string, boolean | 'running'>>({});
   const [justPassed, setJustPassed] = useState<Record<string, boolean>>({});
   const [checksRunning, setChecksRunning] = useState(false);
-  const [confirmMode, setConfirmMode] = useState<'publish' | 'unpublish' | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null);
   const [toastExiting, setToastExiting] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState(settings.themes[0] || 'classic');
@@ -123,30 +122,11 @@ export function PublishPanel({
   }, [onRunChecks, showToast]);
 
   const handlePublish = () => {
-    setConfirmMode('publish');
-  };
-
-  const handleUnpublish = () => {
-    setConfirmMode('unpublish');
+    setShowConfirm(true);
   };
 
   const confirmAction = useCallback(async () => {
-    const mode = confirmMode;
-    setConfirmMode(null);
-    if (!mode) return;
-
-    if (mode === 'unpublish') {
-      setPublishing(true);
-      try {
-        await onUnpublish();
-        showToast('Post unpublished (removed from live site)', '#e5c07b');
-      } catch (e: any) {
-        showToast(`Unpublish failed: ${e?.message || e}`, '#e06c75');
-      } finally {
-        setPublishing(false);
-      }
-      return;
-    }
+    setShowConfirm(false);
 
     // Run checks first
     setChecks({});
@@ -191,7 +171,7 @@ export function PublishPanel({
     } finally {
       setPublishing(false);
     }
-  }, [confirmMode, onRunChecks, onPublish, onThemeChange, onUnpublish, selectedTheme, settings.themes, post.status, saved.status, showToast]);
+  }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, saved.status, showToast]);
 
   return (
     <div style={{
@@ -333,11 +313,6 @@ export function PublishPanel({
       {/* Bottom Action */}
       <div style={{ flexShrink: 0 }}>
         <div style={{ padding: '10px 14px', borderTop: `1px solid ${t.border}`, transition: 'border-color 0.4s ease' }}>
-          {saved.status === 'publish' && (
-            <div style={{ marginBottom: 8 }}>
-              <HoverButton onClick={handleUnpublish} t={t}>Unpublish</HoverButton>
-            </div>
-          )}
           <ActionButton
             post={post} saved={saved} hasChanges={hasChanges}
             publishing={publishing}
@@ -349,19 +324,15 @@ export function PublishPanel({
       </div>
 
       {/* Confirmation Overlay */}
-      {confirmMode && (
+      {showConfirm && (
         <ConfirmModal
           changes={changes}
-          hasChanges={confirmMode === 'publish' && hasChanges}
-          title={confirmMode === 'publish' ? 'Publish changes?' : 'Unpublish this post?'}
-          description={
-            confirmMode === 'publish'
-              ? 'This will run checks, update frontmatter, and trigger a deploy.'
-              : 'This removes the post (and its uploaded images) from the GitHub repo and live site.'
-          }
-          confirmLabel={confirmMode === 'publish' ? 'Publish' : 'Unpublish'}
+          hasChanges={hasChanges}
+          title="Publish changes?"
+          description="This will run checks, update frontmatter, and trigger a deploy."
+          confirmLabel={post.status === 'publish' ? 'Update' : 'Publish'}
           onConfirm={confirmAction}
-          onCancel={() => setConfirmMode(null)}
+          onCancel={() => setShowConfirm(false)}
           t={t}
         />
       )}
