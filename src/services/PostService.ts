@@ -18,11 +18,11 @@ export class PostService {
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     const fm = fmMatch ? (parseYaml(fmMatch[1]) || {}) : {};
 
-    if (!fm.title) throw new Error('Missing required frontmatter: title');
     if (!fm.date) throw new Error('Missing required frontmatter: date');
     if (!fm.slug) throw new Error('Missing required frontmatter: slug');
 
-    const title = String(fm.title);
+    const rawTitle = String(fm.title || '').trim();
+    const title = rawTitle || file.basename;
     const date = String(fm.date);
     const slug = this.normalizeSlug(String(fm.slug));
 
@@ -70,7 +70,7 @@ export class PostService {
         throw new Error(`Image not found in vault: ${linkTarget}`);
       }
 
-      let filename = resolved.name;
+      let filename = this.sanitizeFilename(resolved.name);
       if (usedFilenames.has(filename.toLowerCase())) {
         const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
         const fileExt = filename.substring(filename.lastIndexOf('.'));
@@ -98,10 +98,28 @@ export class PostService {
     for (const img of images) {
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = altMatch?.[2]?.trim() || '';
-      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${img.filename})`;
+      const encodedFilename = encodeURIComponent(img.filename);
+      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
       result = result.replaceAll(img.originalWikilink, mdImage);
     }
     return result;
+  }
+
+  private sanitizeFilename(filename: string): string {
+    const dotIndex = filename.lastIndexOf('.');
+    const hasExt = dotIndex > 0 && dotIndex < filename.length - 1;
+    const base = hasExt ? filename.slice(0, dotIndex) : filename;
+    const ext = hasExt ? filename.slice(dotIndex).toLowerCase() : '';
+
+    const cleanBase = base
+      .normalize('NFKD')
+      .replace(/[^\x00-\x7F]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      || 'image';
+
+    return `${cleanBase}${ext}`;
   }
 
   async computeHash(transformedMarkdown: string, images: ImageData[]): Promise<string> {

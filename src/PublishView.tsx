@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, parseYaml, normalizePath } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, parseYaml } from 'obsidian';
 import { h, render } from 'preact';
 import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
@@ -59,10 +59,11 @@ export class PublishView extends ItemView {
         this.savedStates.set(file.path, { ...post });
       }
       const saved = this.savedStates.get(file.path)!;
-      const currentTheme = await this.getCurrentThemeSafe();
+      const effectiveSettings = this.plugin.getEffectiveSettingsForPath(file.path);
+      const currentTheme = await this.getCurrentThemeSafe(effectiveSettings.themeFilePath, effectiveSettings.themes);
       const settings = {
-        ...this.plugin.settings,
-        themes: this.orderThemes(this.plugin.settings.themes, currentTheme),
+        ...effectiveSettings,
+        themes: this.orderThemes(effectiveSettings.themes, currentTheme),
       };
 
       render(
@@ -71,7 +72,7 @@ export class PublishView extends ItemView {
           saved,
           settings,
           onStatusChange: (status: string) => this.handleStatusChange(file, status),
-          onThemeChange: (theme: string) => this.handleThemeChange(theme),
+          onThemeChange: (theme: string) => this.handleThemeChange(file, theme),
           onSlugChange: (slug: string) => this.handleSlugChange(file, slug),
           onTagsChange: (tags: string[]) => this.handleTagsChange(file, tags),
           onPublish: () => this.handlePublish(file),
@@ -92,9 +93,7 @@ export class PublishView extends ItemView {
   }
 
   private isPostFile(file: { path: string }): boolean {
-    const normalizedFolder = normalizePath(this.plugin.settings.postsFolder).replace(/\/$/, '');
-    const normalizedPath = normalizePath(file.path);
-    return normalizedPath.startsWith(normalizedFolder + '/') && normalizedPath.endsWith('.md');
+    return this.plugin.isPostPath(file.path);
   }
 
   private resolveCurrentPostFile(explicitFile?: TFile | null): TFile | null {
@@ -146,26 +145,27 @@ export class PublishView extends ItemView {
     await this.refresh();
   }
 
-  private async handleThemeChange(theme: string): Promise<void> {
-    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
+  private async handleThemeChange(file: TFile, theme: string): Promise<void> {
+    const effectiveSettings = this.plugin.getEffectiveSettingsForPath(file.path);
+    const themeFile = this.app.vault.getAbstractFileByPath(effectiveSettings.themeFilePath);
     if (themeFile instanceof TFile) {
       await this.app.vault.modify(themeFile, `---\ntheme: ${theme}\n---\n`);
-      await this.plugin.publishThemeSetting(theme);
+      await this.plugin.publishThemeSetting(theme, file.path);
     }
     await this.refresh();
   }
 
-  private async getCurrentThemeSafe(): Promise<string> {
+  private async getCurrentThemeSafe(themeFilePath: string, themes: string[]): Promise<string> {
     try {
-      return await this.getCurrentTheme();
+      return await this.getCurrentTheme(themeFilePath, themes);
     } catch {
-      return this.plugin.settings.themes[0] || 'classic';
+      return themes[0] || 'classic';
     }
   }
 
-  private async getCurrentTheme(): Promise<string> {
-    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
-    if (!(themeFile instanceof TFile)) return this.plugin.settings.themes[0] || 'classic';
+  private async getCurrentTheme(themeFilePath: string, themes: string[]): Promise<string> {
+    const themeFile = this.app.vault.getAbstractFileByPath(themeFilePath);
+    if (!(themeFile instanceof TFile)) return themes[0] || 'classic';
 
     const content = await this.app.vault.read(themeFile);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -174,7 +174,7 @@ export class PublishView extends ItemView {
     if (fromFm) return fromFm;
 
     const kvMatch = content.match(/^theme\s*:\s*["']?([^"'#\r\n]+)["']?\s*$/m);
-    return kvMatch?.[1]?.trim().toLowerCase() || this.plugin.settings.themes[0] || 'classic';
+    return kvMatch?.[1]?.trim().toLowerCase() || themes[0] || 'classic';
   }
 
   private orderThemes(themes: string[], currentTheme: string): string[] {
@@ -226,8 +226,9 @@ export class PublishView extends ItemView {
   }
 
   private handleOpenDeployHistory(): void {
-    const repo = this.plugin.settings.repository;
-    const url = `https://github.com/${repo}/commits/main`;
+    const activeFile = this.app.workspace.getActiveFile();
+    const effectiveSettings = this.plugin.getEffectiveSettingsForPath(activeFile?.path);
+    const url = `https://github.com/${effectiveSettings.repository}/commits/${effectiveSettings.branch}`;
     window.open(url);
   }
 }

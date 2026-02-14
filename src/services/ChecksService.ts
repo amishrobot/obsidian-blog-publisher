@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian';
+import { App, TFile, parseYaml } from 'obsidian';
 import { BlogPublisherSettings } from '../models/types';
 
 export interface CheckResult {
@@ -18,14 +18,16 @@ export class ChecksService {
   }
 
   async checkFrontmatter(file: TFile): Promise<CheckResult> {
-    const cache = this.app.metadataCache.getFileCache(file);
-    if (!cache?.frontmatter) {
+    const fm = await this.parseFrontmatter(file);
+    if (!fm) {
       return { passed: false, message: 'No frontmatter found' };
     }
-    const fm = cache.frontmatter;
     const missing: string[] = [];
-    if (!fm.title) missing.push('title');
-    if (!fm.date) missing.push('date');
+    const title = String(fm.title || '').trim();
+    if (!title) {
+      // Some legacy posts intentionally/accidentally have empty title in frontmatter.
+      // We can safely fall back to filename for publish flow.
+    }
     if (!fm.slug) missing.push('slug');
     if (missing.length > 0) {
       return { passed: false, message: `Missing: ${missing.join(', ')}` };
@@ -34,8 +36,8 @@ export class ChecksService {
   }
 
   async checkSlug(file: TFile): Promise<CheckResult> {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const slug = String(cache?.frontmatter?.slug || '');
+    const fm = await this.parseFrontmatter(file);
+    const slug = String(fm?.slug || '');
     if (!slug) return { passed: false, message: 'No slug' };
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return { passed: false, message: 'Invalid characters in slug' };
@@ -98,5 +100,14 @@ export class ChecksService {
       images: await this.checkImages(file),
       build: await this.checkBuild(file),
     };
+  }
+
+  private async parseFrontmatter(file: TFile): Promise<Record<string, unknown> | null> {
+    const content = await this.app.vault.read(file);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return null;
+    const parsed = parseYaml(fmMatch[1]);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed as Record<string, unknown>;
   }
 }

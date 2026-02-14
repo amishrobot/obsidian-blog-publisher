@@ -22,7 +22,7 @@ __export(main_exports, {
   default: () => BlogPublisherPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/PublishView.tsx
 var import_obsidian = require("obsidian");
@@ -501,6 +501,8 @@ var DEFAULT_SETTINGS = {
   repository: "amishrobot/amishrobot.com",
   branch: "main",
   postsFolder: "Personal/Blog/posts",
+  blogTargets: [],
+  blogTargetsJson: "",
   themeFilePath: "Personal/Blog/settings/theme.md",
   themeRepoPath: "content/settings/theme.md",
   themePublishedHash: "",
@@ -984,7 +986,8 @@ function SlugEditor({ slug, onChange, t: t3 }) {
 function UrlPreview({ url, t: t3 }) {
   const [copied, setCopied] = d2(false);
   const [hovered, hoverHandlers] = useHover();
-  const fullUrl = `https://${url}`;
+  const normalized = url.trim();
+  const fullUrl = /^https?:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
   const copy = () => {
     navigator.clipboard.writeText(fullUrl).catch(() => {
     });
@@ -1072,7 +1075,13 @@ function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 })
     onClick = null;
     disabled = true;
   } else if (hasChanges) {
-    label = "Publish";
+    if (post.status === "publish" && saved.status === "publish") {
+      label = "Update Live Post";
+    } else if (post.status === "publish") {
+      label = "Publish Live";
+    } else {
+      label = "Save Draft";
+    }
     bg = hovered ? "#88b86a" : "#98c379";
     color = "#1e1e1e";
     glow = true;
@@ -1150,7 +1159,16 @@ function ConfirmButton({ label, onClick, bg, color, border }) {
     label
   );
 }
-function ConfirmModal({ changes, hasChanges, onConfirm, onCancel, t: t3 }) {
+function ConfirmModal({
+  changes,
+  hasChanges,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  t: t3
+}) {
   return /* @__PURE__ */ _("div", { style: {
     position: "absolute",
     inset: 0,
@@ -1168,7 +1186,7 @@ function ConfirmModal({ changes, hasChanges, onConfirm, onCancel, t: t3 }) {
     width: "100%",
     border: `1px solid ${t3.border}`,
     animation: "modalIn 0.25s ease"
-  } }, /* @__PURE__ */ _("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: t3.heading } }, "Publish changes?"), /* @__PURE__ */ _("div", { style: { fontSize: 12, color: t3.textMuted, marginBottom: 12, lineHeight: 1.5 } }, "This will run checks, update frontmatter, and trigger a Vercel deploy. Your build pipeline will handle the rest."), hasChanges && /* @__PURE__ */ _("div", { style: { padding: "8px 10px", borderRadius: 6, background: t3.bgDeep, border: `1px solid ${t3.border}`, marginBottom: 12 } }, /* @__PURE__ */ _("div", { style: { fontSize: 10, color: t3.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 } }, "Changes"), changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))), /* @__PURE__ */ _("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ _(ConfirmButton, { label: "Cancel", onClick: onCancel, bg: "transparent", color: t3.textMuted, border: t3.border }), /* @__PURE__ */ _(ConfirmButton, { label: "Publish", onClick: onConfirm, bg: "#98c379", color: "#1e1e1e" }))));
+  } }, /* @__PURE__ */ _("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: t3.heading } }, title), /* @__PURE__ */ _("div", { style: { fontSize: 12, color: t3.textMuted, marginBottom: 12, lineHeight: 1.5 } }, description), hasChanges && /* @__PURE__ */ _("div", { style: { padding: "8px 10px", borderRadius: 6, background: t3.bgDeep, border: `1px solid ${t3.border}`, marginBottom: 12 } }, /* @__PURE__ */ _("div", { style: { fontSize: 10, color: t3.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 } }, "Changes"), changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))), /* @__PURE__ */ _("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ _(ConfirmButton, { label: "Cancel", onClick: onCancel, bg: "transparent", color: t3.textMuted, border: t3.border }), /* @__PURE__ */ _(ConfirmButton, { label: confirmLabel, onClick: onConfirm, bg: "#98c379", color: "#1e1e1e" }))));
 }
 
 // src/components/HoverButton.tsx
@@ -1269,7 +1287,7 @@ function PublishPanel({
   const [checks, setChecks] = d2({});
   const [justPassed, setJustPassed] = d2({});
   const [checksRunning, setChecksRunning] = d2(false);
-  const [showConfirm, setShowConfirm] = d2(false);
+  const [confirmMode, setConfirmMode] = d2(null);
   const [toast, setToast] = d2(null);
   const [toastExiting, setToastExiting] = d2(false);
   const [selectedTheme, setSelectedTheme] = d2(settings.themes[0] || "classic");
@@ -1283,7 +1301,8 @@ function PublishPanel({
   const allChecksPassed = CHECKS.every((c3) => checks[c3.id] === true);
   const readingTime = Math.max(1, Math.ceil(post.wordCount / 238));
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
-  const siteUrl = `amishrobot.com/${((_a = post.date.match(/^(\d{4})/)) == null ? void 0 : _a[1]) || ""}/${post.slug}`;
+  const normalizedSiteUrl = settings.siteUrl.replace(/\/+$/, "");
+  const siteUrl = `${normalizedSiteUrl}/${((_a = post.date.match(/^(\d{4})/)) == null ? void 0 : _a[1]) || ""}/${post.slug}`;
   y2(() => {
     const liveTheme = settings.themes[0] || "classic";
     setSelectedTheme(liveTheme);
@@ -1323,11 +1342,29 @@ function PublishPanel({
     showToast("All checks passed", "#98c379");
   }, [onRunChecks, showToast]);
   const handlePublish = () => {
-    setShowConfirm(true);
+    setConfirmMode("publish");
+  };
+  const handleUnpublish = () => {
+    setConfirmMode("unpublish");
   };
   const confirmAction = q2(async () => {
     var _a2, _b2;
-    setShowConfirm(false);
+    const mode = confirmMode;
+    setConfirmMode(null);
+    if (!mode)
+      return;
+    if (mode === "unpublish") {
+      setPublishing(true);
+      try {
+        await onUnpublish();
+        showToast("Post unpublished (removed from live site)", "#e5c07b");
+      } catch (e3) {
+        showToast(`Unpublish failed: ${(e3 == null ? void 0 : e3.message) || e3}`, "#e06c75");
+      } finally {
+        setPublishing(false);
+      }
+      return;
+    }
     setChecks({});
     setJustPassed({});
     setChecksRunning(true);
@@ -1343,7 +1380,8 @@ function PublishPanel({
       setTimeout(() => setJustPassed((prev) => ({ ...prev, [check.id]: false })), 400);
       if (!passed) {
         setChecksRunning(false);
-        showToast(`Check failed: ${check.label}`, "#e06c75");
+        const detail = (result == null ? void 0 : result.message) ? ` (${result.message})` : "";
+        showToast(`Check failed: ${check.label}${detail}`, "#e06c75");
         return;
       }
     }
@@ -1355,14 +1393,14 @@ function PublishPanel({
       }
       await onPublish();
       const statusLabel = (((_b2 = STATUS_CONFIG[post.status]) == null ? void 0 : _b2.label) || "unknown").toLowerCase();
-      const toastMsg = post.status === "publish" ? "Deploy triggered \u2014 post going live" : `Deploy triggered \u2014 status: ${statusLabel}`;
+      const toastMsg = post.status === "publish" ? saved.status === "publish" ? "Deploy triggered \u2014 updating live post" : "Deploy triggered \u2014 post going live" : `Deploy triggered \u2014 status: ${statusLabel}`;
       showToast(toastMsg, "#98c379");
     } catch (e3) {
       showToast(`Publish failed: ${(e3 == null ? void 0 : e3.message) || e3}`, "#e06c75");
     } finally {
       setPublishing(false);
     }
-  }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, showToast]);
+  }, [confirmMode, onRunChecks, onPublish, onThemeChange, onUnpublish, selectedTheme, settings.themes, post.status, saved.status, showToast]);
   return /* @__PURE__ */ _("div", { style: {
     height: "100%",
     background: t3.bg,
@@ -1395,7 +1433,7 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_b = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _b.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_c = THEME_PALETTES[selectedTheme]) == null ? void 0 : _c.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
+  } }, ((_b = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _b.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_c = THEME_PALETTES[selectedTheme]) == null ? void 0 : _c.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, saved.status === "publish" && /* @__PURE__ */ _("div", { style: { marginBottom: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handleUnpublish, t: t3 }, "Unpublish")), /* @__PURE__ */ _(
     ActionButton,
     {
       post,
@@ -1405,13 +1443,16 @@ function PublishPanel({
       onPublish: handlePublish,
       t: t3
     }
-  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), showConfirm && /* @__PURE__ */ _(
+  )), /* @__PURE__ */ _(DeployHistoryButton, { onClick: onOpenDeployHistory, t: t3 })), confirmMode && /* @__PURE__ */ _(
     ConfirmModal,
     {
       changes,
-      hasChanges,
+      hasChanges: confirmMode === "publish" && hasChanges,
+      title: confirmMode === "publish" ? "Publish changes?" : "Unpublish this post?",
+      description: confirmMode === "publish" ? "This will run checks, update frontmatter, and trigger a deploy." : "This removes the post (and its uploaded images) from the GitHub repo and live site.",
+      confirmLabel: confirmMode === "publish" ? "Publish" : "Unpublish",
       onConfirm: confirmAction,
-      onCancel: () => setShowConfirm(false),
+      onCancel: () => setConfirmMode(null),
       t: t3
     }
   ), toast && /* @__PURE__ */ _("div", { style: {
@@ -1470,10 +1511,11 @@ var PublishView = class extends import_obsidian.ItemView {
         this.savedStates.set(file.path, { ...post });
       }
       const saved = this.savedStates.get(file.path);
-      const currentTheme = await this.getCurrentThemeSafe();
+      const effectiveSettings = this.plugin.getEffectiveSettingsForPath(file.path);
+      const currentTheme = await this.getCurrentThemeSafe(effectiveSettings.themeFilePath, effectiveSettings.themes);
       const settings = {
-        ...this.plugin.settings,
-        themes: this.orderThemes(this.plugin.settings.themes, currentTheme)
+        ...effectiveSettings,
+        themes: this.orderThemes(effectiveSettings.themes, currentTheme)
       };
       G(
         _(PublishPanel, {
@@ -1481,7 +1523,7 @@ var PublishView = class extends import_obsidian.ItemView {
           saved,
           settings,
           onStatusChange: (status) => this.handleStatusChange(file, status),
-          onThemeChange: (theme) => this.handleThemeChange(theme),
+          onThemeChange: (theme) => this.handleThemeChange(file, theme),
           onSlugChange: (slug) => this.handleSlugChange(file, slug),
           onTagsChange: (tags) => this.handleTagsChange(file, tags),
           onPublish: () => this.handlePublish(file),
@@ -1501,9 +1543,7 @@ var PublishView = class extends import_obsidian.ItemView {
     }
   }
   isPostFile(file) {
-    const normalizedFolder = (0, import_obsidian.normalizePath)(this.plugin.settings.postsFolder).replace(/\/$/, "");
-    const normalizedPath = (0, import_obsidian.normalizePath)(file.path);
-    return normalizedPath.startsWith(normalizedFolder + "/") && normalizedPath.endsWith(".md");
+    return this.plugin.isPostPath(file.path);
   }
   resolveCurrentPostFile(explicitFile) {
     if (explicitFile === null)
@@ -1543,29 +1583,30 @@ var PublishView = class extends import_obsidian.ItemView {
     });
     await this.refresh();
   }
-  async handleThemeChange(theme) {
-    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
+  async handleThemeChange(file, theme) {
+    const effectiveSettings = this.plugin.getEffectiveSettingsForPath(file.path);
+    const themeFile = this.app.vault.getAbstractFileByPath(effectiveSettings.themeFilePath);
     if (themeFile instanceof import_obsidian.TFile) {
       await this.app.vault.modify(themeFile, `---
 theme: ${theme}
 ---
 `);
-      await this.plugin.publishThemeSetting(theme);
+      await this.plugin.publishThemeSetting(theme, file.path);
     }
     await this.refresh();
   }
-  async getCurrentThemeSafe() {
+  async getCurrentThemeSafe(themeFilePath, themes) {
     try {
-      return await this.getCurrentTheme();
+      return await this.getCurrentTheme(themeFilePath, themes);
     } catch (e3) {
-      return this.plugin.settings.themes[0] || "classic";
+      return themes[0] || "classic";
     }
   }
-  async getCurrentTheme() {
+  async getCurrentTheme(themeFilePath, themes) {
     var _a;
-    const themeFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.themeFilePath);
+    const themeFile = this.app.vault.getAbstractFileByPath(themeFilePath);
     if (!(themeFile instanceof import_obsidian.TFile))
-      return this.plugin.settings.themes[0] || "classic";
+      return themes[0] || "classic";
     const content = await this.app.vault.read(themeFile);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     const fm = fmMatch ? (0, import_obsidian.parseYaml)(fmMatch[1]) || {} : {};
@@ -1573,7 +1614,7 @@ theme: ${theme}
     if (fromFm)
       return fromFm;
     const kvMatch = content.match(/^theme\s*:\s*["']?([^"'#\r\n]+)["']?\s*$/m);
-    return ((_a = kvMatch == null ? void 0 : kvMatch[1]) == null ? void 0 : _a.trim().toLowerCase()) || this.plugin.settings.themes[0] || "classic";
+    return ((_a = kvMatch == null ? void 0 : kvMatch[1]) == null ? void 0 : _a.trim().toLowerCase()) || themes[0] || "classic";
   }
   orderThemes(themes, currentTheme) {
     const normalizedCurrent = currentTheme.trim().toLowerCase();
@@ -1616,8 +1657,9 @@ theme: ${theme}
     return this.plugin.checksService.runAll(file);
   }
   handleOpenDeployHistory() {
-    const repo = this.plugin.settings.repository;
-    const url = `https://github.com/${repo}/commits/main`;
+    const activeFile = this.app.workspace.getActiveFile();
+    const effectiveSettings = this.plugin.getEffectiveSettingsForPath(activeFile == null ? void 0 : activeFile.path);
+    const url = `https://github.com/${effectiveSettings.repository}/commits/${effectiveSettings.branch}`;
     window.open(url);
   }
 };
@@ -1634,13 +1676,12 @@ var PostService = class {
     const content = await this.app.vault.read(file);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     const fm = fmMatch ? (0, import_obsidian2.parseYaml)(fmMatch[1]) || {} : {};
-    if (!fm.title)
-      throw new Error("Missing required frontmatter: title");
     if (!fm.date)
       throw new Error("Missing required frontmatter: date");
     if (!fm.slug)
       throw new Error("Missing required frontmatter: slug");
-    const title = String(fm.title);
+    const rawTitle = String(fm.title || "").trim();
+    const title = rawTitle || file.basename;
     const date = String(fm.date);
     const slug = this.normalizeSlug(String(fm.slug));
     const yearMatch = date.match(/^(\d{4})/);
@@ -1680,7 +1721,7 @@ var PostService = class {
       if (!resolved) {
         throw new Error(`Image not found in vault: ${linkTarget}`);
       }
-      let filename = resolved.name;
+      let filename = this.sanitizeFilename(resolved.name);
       if (usedFilenames.has(filename.toLowerCase())) {
         const nameWithoutExt = filename.substring(0, filename.lastIndexOf("."));
         const fileExt = filename.substring(filename.lastIndexOf("."));
@@ -1706,10 +1747,19 @@ var PostService = class {
     for (const img of images) {
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = ((_a = altMatch == null ? void 0 : altMatch[2]) == null ? void 0 : _a.trim()) || "";
-      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${img.filename})`;
+      const encodedFilename = encodeURIComponent(img.filename);
+      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
       result = result.replaceAll(img.originalWikilink, mdImage);
     }
     return result;
+  }
+  sanitizeFilename(filename) {
+    const dotIndex = filename.lastIndexOf(".");
+    const hasExt = dotIndex > 0 && dotIndex < filename.length - 1;
+    const base = hasExt ? filename.slice(0, dotIndex) : filename;
+    const ext = hasExt ? filename.slice(dotIndex).toLowerCase() : "";
+    const cleanBase = base.normalize("NFKD").replace(/[^\x00-\x7F]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "image";
+    return `${cleanBase}${ext}`;
   }
   async computeHash(transformedMarkdown, images) {
     const parts = [transformedMarkdown];
@@ -1824,7 +1874,7 @@ var GitHubService = class {
     );
     await this.apiPatch(
       `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      { sha: commit.sha }
+      { sha: commit.sha, force: false }
     );
     return commit.sha;
   }
@@ -1887,12 +1937,12 @@ var GitHubService = class {
     );
     await this.apiPatch(
       `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      { sha: commit.sha }
+      { sha: commit.sha, force: false }
     );
     return commit.sha;
   }
   async withRefRetry(operation) {
-    const maxAttempts = 5;
+    const maxAttempts = 8;
     let lastError = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const headSha = await this.getHeadSha();
@@ -1904,7 +1954,7 @@ var GitHubService = class {
         if (!this.shouldRetryRefUpdate(error) || attempt === maxAttempts) {
           throw error;
         }
-        await this.sleep(attempt * 250);
+        await this.sleep(attempt * 350 + Math.floor(Math.random() * 150));
       }
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
@@ -1925,7 +1975,7 @@ var GitHubService = class {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async apiRequest(method, path, body) {
-    var _a;
+    var _a, _b, _c;
     const url = `https://api.github.com${path}`;
     try {
       const resp = await (0, import_obsidian3.requestUrl)({
@@ -1939,7 +1989,9 @@ var GitHubService = class {
       const status = (e3 == null ? void 0 : e3.status) || "unknown";
       let detail = "";
       try {
-        detail = JSON.stringify(((_a = e3 == null ? void 0 : e3.response) == null ? void 0 : _a.json) || (e3 == null ? void 0 : e3.message) || e3);
+        detail = JSON.stringify(
+          ((_a = e3 == null ? void 0 : e3.response) == null ? void 0 : _a.json) || ((_b = e3 == null ? void 0 : e3.response) == null ? void 0 : _b.text) || ((_c = e3 == null ? void 0 : e3.response) == null ? void 0 : _c.body) || (e3 == null ? void 0 : e3.message) || e3
+        );
       } catch (e4) {
         detail = String(e3);
       }
@@ -1972,6 +2024,7 @@ var GitHubService = class {
 };
 
 // src/services/ChecksService.ts
+var import_obsidian4 = require("obsidian");
 var IMAGE_EXTENSIONS2 = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
 var ChecksService = class {
   constructor(app, settings) {
@@ -1979,16 +2032,14 @@ var ChecksService = class {
     this.settings = settings;
   }
   async checkFrontmatter(file) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    if (!(cache == null ? void 0 : cache.frontmatter)) {
+    const fm = await this.parseFrontmatter(file);
+    if (!fm) {
       return { passed: false, message: "No frontmatter found" };
     }
-    const fm = cache.frontmatter;
     const missing = [];
-    if (!fm.title)
-      missing.push("title");
-    if (!fm.date)
-      missing.push("date");
+    const title = String(fm.title || "").trim();
+    if (!title) {
+    }
     if (!fm.slug)
       missing.push("slug");
     if (missing.length > 0) {
@@ -1997,9 +2048,8 @@ var ChecksService = class {
     return { passed: true };
   }
   async checkSlug(file) {
-    var _a;
-    const cache = this.app.metadataCache.getFileCache(file);
-    const slug = String(((_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.slug) || "");
+    const fm = await this.parseFrontmatter(file);
+    const slug = String((fm == null ? void 0 : fm.slug) || "");
     if (!slug)
       return { passed: false, message: "No slug" };
     if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -2062,10 +2112,20 @@ var ChecksService = class {
       build: await this.checkBuild(file)
     };
   }
+  async parseFrontmatter(file) {
+    const content = await this.app.vault.read(file);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch)
+      return null;
+    const parsed = (0, import_obsidian4.parseYaml)(fmMatch[1]);
+    if (!parsed || typeof parsed !== "object")
+      return null;
+    return parsed;
+  }
 };
 
 // src/services/ConfigService.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var STATE_FILE_PATH = "_state/blog-config.md";
 var ConfigService = class {
   constructor(app) {
@@ -2073,24 +2133,93 @@ var ConfigService = class {
   }
   async loadFromStateFile() {
     const file = this.app.vault.getAbstractFileByPath(STATE_FILE_PATH);
-    if (!(file instanceof import_obsidian4.TFile))
+    if (!(file instanceof import_obsidian5.TFile))
       return null;
     const content = await this.app.vault.read(file);
     return this.parseStateFile(content);
   }
   parseStateFile(content) {
     const settings = {};
-    const body = content.replace(/^---\n[\s\S]*?\n---\n?/, "");
+    const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+    let parsed;
+    try {
+      parsed = (0, import_obsidian5.parseYaml)(body);
+    } catch (e3) {
+      return this.parseLineBased(content);
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return this.parseLineBased(content);
+    }
+    const data = parsed;
+    this.setStringValue(settings, "githubToken", data.githubToken);
+    this.setStringValue(settings, "repository", data.repository);
+    this.setStringValue(settings, "branch", data.branch);
+    this.setStringValue(settings, "postsFolder", data.postsFolder);
+    this.setStringValue(settings, "blogTargetsJson", data.blogTargetsJson);
+    this.setStringValue(settings, "themeFilePath", data.themeFilePath);
+    this.setStringValue(settings, "themeRepoPath", data.themeRepoPath);
+    this.setStringValue(settings, "siteUrl", data.siteUrl);
+    this.setListValue(settings, "themes", data.themes);
+    this.setTargetListValue(settings, data.blogTargets);
+    return settings;
+  }
+  setStringValue(settings, key, value) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      settings[key] = value.trim();
+    }
+  }
+  setListValue(settings, key, values) {
+    if (key === "themes" && Array.isArray(values)) {
+      settings.themes = values.map((value) => typeof value === "string" ? value.trim() : "").filter((value) => value.length > 0);
+    }
+  }
+  setTargetListValue(settings, value) {
+    if (!Array.isArray(value))
+      return;
+    const targets = value.map((item) => this.parseTarget(item)).filter((item) => item !== null);
+    if (targets.length > 0) {
+      settings.blogTargets = targets;
+    }
+  }
+  parseTarget(input) {
+    if (!input || typeof input !== "object")
+      return null;
+    const row = input;
+    if (typeof row.postsFolder !== "string" || row.postsFolder.trim().length === 0) {
+      return null;
+    }
+    const target = { postsFolder: row.postsFolder.trim() };
+    if (typeof row.name === "string" && row.name.trim().length > 0)
+      target.name = row.name.trim();
+    if (typeof row.repository === "string" && row.repository.trim().length > 0)
+      target.repository = row.repository.trim();
+    if (typeof row.branch === "string" && row.branch.trim().length > 0)
+      target.branch = row.branch.trim();
+    if (typeof row.themeFilePath === "string" && row.themeFilePath.trim().length > 0)
+      target.themeFilePath = row.themeFilePath.trim();
+    if (typeof row.themeRepoPath === "string" && row.themeRepoPath.trim().length > 0)
+      target.themeRepoPath = row.themeRepoPath.trim();
+    if (typeof row.siteUrl === "string" && row.siteUrl.trim().length > 0)
+      target.siteUrl = row.siteUrl.trim();
+    if (Array.isArray(row.themes)) {
+      target.themes = row.themes.map((theme) => typeof theme === "string" ? theme.trim() : "").filter((theme) => theme.length > 0);
+    }
+    return target;
+  }
+  parseLineBased(content) {
+    const settings = {};
+    const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
     const lines = body.split("\n");
     let currentKey = null;
     let listValues = [];
     for (const line of lines) {
-      if (line.startsWith("#") || line.trim() === "") {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
         if (currentKey && listValues.length > 0) {
           this.setListValue(settings, currentKey, listValues);
-          currentKey = null;
-          listValues = [];
         }
+        currentKey = null;
+        listValues = [];
         continue;
       }
       const listMatch = line.match(/^\s+-\s+(.+)/);
@@ -2099,44 +2228,25 @@ var ConfigService = class {
         continue;
       }
       const kvMatch = line.match(/^(\w+):\s*(.*)/);
-      if (kvMatch) {
-        if (currentKey && listValues.length > 0) {
-          this.setListValue(settings, currentKey, listValues);
-          listValues = [];
-        }
-        const key = kvMatch[1];
-        const value = kvMatch[2].trim();
-        if (value === "") {
-          currentKey = key;
-        } else {
-          this.setStringValue(settings, key, value);
-          currentKey = null;
-        }
+      if (!kvMatch)
+        continue;
+      if (currentKey && listValues.length > 0) {
+        this.setListValue(settings, currentKey, listValues);
+      }
+      const key = kvMatch[1];
+      const value = kvMatch[2].trim();
+      listValues = [];
+      if (!value) {
+        currentKey = key;
+      } else {
+        currentKey = null;
+        this.setStringValue(settings, key, value);
       }
     }
     if (currentKey && listValues.length > 0) {
       this.setListValue(settings, currentKey, listValues);
     }
     return settings;
-  }
-  setStringValue(settings, key, value) {
-    const validKeys = [
-      "githubToken",
-      "repository",
-      "branch",
-      "postsFolder",
-      "themeFilePath",
-      "themeRepoPath",
-      "siteUrl"
-    ];
-    if (validKeys.includes(key)) {
-      settings[key] = value;
-    }
-  }
-  setListValue(settings, key, values) {
-    if (key === "themes") {
-      settings.themes = values;
-    }
   }
   merge(pluginSettings, stateOverrides) {
     if (!stateOverrides)
@@ -2146,8 +2256,8 @@ var ConfigService = class {
 };
 
 // src/SettingsTab.ts
-var import_obsidian5 = require("obsidian");
-var SettingsTab = class extends import_obsidian5.PluginSettingTab {
+var import_obsidian6 = require("obsidian");
+var SettingsTab = class extends import_obsidian6.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -2155,61 +2265,69 @@ var SettingsTab = class extends import_obsidian5.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian5.Setting(containerEl).setName("GitHub token").setDesc("Fine-grained personal access token with contents:write scope").addText(
+    new import_obsidian6.Setting(containerEl).setName("GitHub token").setDesc("Fine-grained personal access token with contents:write scope").addText(
       (text) => text.setPlaceholder("github_pat_...").setValue(this.plugin.settings.githubToken).then((t3) => t3.inputEl.type = "password").onChange(async (value) => {
         this.plugin.settings.githubToken = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Repository").setDesc("GitHub repository (owner/repo)").addText(
+    new import_obsidian6.Setting(containerEl).setName("Repository").setDesc("GitHub repository (owner/repo)").addText(
       (text) => text.setPlaceholder("amishrobot/amishrobot.com").setValue(this.plugin.settings.repository).onChange(async (value) => {
         this.plugin.settings.repository = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Branch").setDesc("Target branch for commits").addText(
+    new import_obsidian6.Setting(containerEl).setName("Branch").setDesc("Target branch for commits").addText(
       (text) => text.setPlaceholder("main").setValue(this.plugin.settings.branch).onChange(async (value) => {
         this.plugin.settings.branch = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
+    new import_obsidian6.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
       (text) => text.setPlaceholder("Personal/Blog/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
         this.plugin.settings.postsFolder = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
+    new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_state/blog-config.md` is not present.").addTextArea(
+      (text) => text.setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
+        this.plugin.settings.blogTargetsJson = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
       (text) => text.setPlaceholder("Personal/Blog/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
         this.plugin.settings.themeFilePath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Theme repo path").setDesc("Path in GitHub repo for committed theme settings").addText(
+    new import_obsidian6.Setting(containerEl).setName("Theme repo path").setDesc("Path in GitHub repo for committed theme settings").addText(
       (text) => text.setPlaceholder("content/settings/theme.md").setValue(this.plugin.settings.themeRepoPath).onChange(async (value) => {
         this.plugin.settings.themeRepoPath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
+    new import_obsidian6.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
       (text) => text.setPlaceholder("https://amishrobot.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
         this.plugin.settings.siteUrl = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian5.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)").addText(
+    new import_obsidian6.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)").addText(
       (text) => text.setPlaceholder("classic,paper,spruce,midnight,soviet").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
         this.plugin.settings.themes = value.split(",").map((s3) => s3.trim()).filter((s3) => s3.length > 0);
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_state/blog-config.md` for per-folder repo/site routing.");
   }
 };
 
 // src/main.ts
-var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
+var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
+    this.writeLock = Promise.resolve();
     this.refreshFastTimer = null;
     this.refreshSettledTimer = null;
   }
@@ -2243,7 +2361,7 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     });
     this.registerEvent(
       this.app.workspace.on("file-open", async (file) => {
-        if (file instanceof import_obsidian6.TFile && this.isPostFile(file)) {
+        if (file instanceof import_obsidian7.TFile && this.isPostFile(file)) {
           await this.syncTitleAndSlugFromName(file);
           this.scheduleRefresh(file);
           return;
@@ -2264,7 +2382,7 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     let modifyTimeout = null;
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (!(file instanceof import_obsidian6.TFile) || !this.isPostFile(file))
+        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file))
           return;
         if (modifyTimeout)
           clearTimeout(modifyTimeout);
@@ -2273,7 +2391,7 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     );
     this.registerEvent(
       this.app.vault.on("rename", async (file, oldPath) => {
-        if (!(file instanceof import_obsidian6.TFile) || !this.isPostFile(file))
+        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file))
           return;
         await this.syncTitleAndSlugFromName(file, oldPath);
         this.scheduleRefresh(file);
@@ -2289,8 +2407,60 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
     console.log("Unloading Blog Publisher v2");
   }
   isPostFile(file) {
-    const folder = this.settings.postsFolder.replace(/\/$/, "");
-    return file.path.startsWith(folder + "/") && file.path.endsWith(".md");
+    if (!file.path.endsWith(".md"))
+      return false;
+    return this.resolveTargetForPath(file.path) !== null;
+  }
+  isPostPath(path) {
+    if (!path.endsWith(".md"))
+      return false;
+    return this.resolveTargetForPath(path) !== null;
+  }
+  normalizeFolderPath(path) {
+    return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  }
+  pathMatchesFolder(path, folder) {
+    const normalizedPath = this.normalizeFolderPath(path);
+    const normalizedFolder = this.normalizeFolderPath(folder);
+    if (!normalizedFolder)
+      return false;
+    return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+  }
+  resolveTargetForPath(path) {
+    if (!path)
+      return null;
+    const targets = this.settings.blogTargets || [];
+    if (targets.length === 0) {
+      return this.pathMatchesFolder(path, this.settings.postsFolder) ? { postsFolder: this.settings.postsFolder } : null;
+    }
+    let best = null;
+    let bestLength = -1;
+    for (const target of targets) {
+      const folder = this.normalizeFolderPath(target.postsFolder || "");
+      if (!folder || !this.pathMatchesFolder(path, folder))
+        continue;
+      if (folder.length > bestLength) {
+        best = target;
+        bestLength = folder.length;
+      }
+    }
+    return best;
+  }
+  getEffectiveSettingsForPath(path) {
+    var _a, _b, _c, _d, _e;
+    const target = this.resolveTargetForPath(path);
+    if (!target)
+      return this.settings;
+    return {
+      ...this.settings,
+      repository: (_a = target.repository) != null ? _a : this.settings.repository,
+      branch: (_b = target.branch) != null ? _b : this.settings.branch,
+      postsFolder: target.postsFolder || this.settings.postsFolder,
+      themeFilePath: (_c = target.themeFilePath) != null ? _c : this.settings.themeFilePath,
+      themeRepoPath: (_d = target.themeRepoPath) != null ? _d : this.settings.themeRepoPath,
+      siteUrl: (_e = target.siteUrl) != null ? _e : this.settings.siteUrl,
+      themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes
+    };
   }
   slugify(value) {
     return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -2359,49 +2529,60 @@ var BlogPublisherPlugin = class extends import_obsidian6.Plugin {
   }
   // ── Publishing methods (called by PublishView) ──────────────────
   async publishFile(file) {
-    const postService = new PostService(this.app, this.settings);
-    const postData = await postService.buildPostData(file);
-    const githubService = new GitHubService(this.app, this.settings);
-    const result = await githubService.publish(postData);
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.publishedAt = (/* @__PURE__ */ new Date()).toISOString();
-      fm.publishedCommit = result.commitSha;
-      fm.publishedHash = postData.publishedHash;
+    await this.withWriteLock(async () => {
+      await this.ensurePublishDate(file);
+      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const postService = new PostService(this.app, effectiveSettings);
+      const postData = await postService.buildPostData(file);
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      const result = await githubService.publish(postData);
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        fm.publishedAt = (/* @__PURE__ */ new Date()).toISOString();
+        fm.publishedCommit = result.commitSha;
+        fm.publishedHash = postData.publishedHash;
+      });
     });
   }
   async unpublishFile(file) {
-    const postService = new PostService(this.app, this.settings);
-    const postData = await postService.buildPostData(file);
-    const filePaths = [postData.repoPostPath, ...postData.images.map((img) => img.repoPath)];
-    const githubService = new GitHubService(this.app, this.settings);
-    await githubService.unpublish(filePaths, postData.title);
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      delete fm.publishedAt;
-      delete fm.publishedCommit;
-      delete fm.publishedHash;
+    await this.withWriteLock(async () => {
+      await this.ensurePublishDate(file);
+      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const postService = new PostService(this.app, effectiveSettings);
+      const postData = await postService.buildPostData(file);
+      const filePaths = [postData.repoPostPath, ...postData.images.map((img) => img.repoPath)];
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      await githubService.unpublish(filePaths, postData.title);
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        delete fm.publishedAt;
+        delete fm.publishedCommit;
+        delete fm.publishedHash;
+      });
     });
   }
-  async publishThemeSetting(theme) {
-    const content = `---
+  async publishThemeSetting(theme, filePath) {
+    await this.withWriteLock(async () => {
+      const effectiveSettings = this.getEffectiveSettingsForPath(filePath);
+      const content = `---
 theme: ${theme}
 ---
 `;
-    const githubService = new GitHubService(this.app, this.settings);
-    const remoteMatches = await githubService.fileContentEquals(
-      this.settings.themeRepoPath,
-      content
-    );
-    if (remoteMatches) {
-      return;
-    }
-    const commitSha = await githubService.publishTextFile(
-      this.settings.themeRepoPath,
-      content,
-      `Theme: ${theme}`
-    );
-    this.settings.themePublishedCommit = commitSha;
-    this.settings.themePublishedHash = "";
-    await this.saveSettings();
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      const remoteMatches = await githubService.fileContentEquals(
+        effectiveSettings.themeRepoPath,
+        content
+      );
+      if (remoteMatches) {
+        return;
+      }
+      const commitSha = await githubService.publishTextFile(
+        effectiveSettings.themeRepoPath,
+        content,
+        `Theme: ${theme}`
+      );
+      this.settings.themePublishedCommit = commitSha;
+      this.settings.themePublishedHash = "";
+      await this.saveSettings();
+    });
   }
   // ── Settings ────────────────────────────────────────────────────
   async loadSettings() {
@@ -2409,8 +2590,50 @@ theme: ${theme}
     const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     const stateOverrides = await this.configService.loadFromStateFile();
     this.settings = this.configService.merge(pluginData, stateOverrides);
+    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+  async ensurePublishDate(file) {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const current = String(fm.date || "").trim();
+      if (!current) {
+        fm.date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      }
+    });
+  }
+  resolveBlogTargets(targets, blogTargetsJson) {
+    if (targets && targets.length > 0) {
+      return targets;
+    }
+    const raw = (blogTargetsJson || "").trim();
+    if (!raw)
+      return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed))
+        return [];
+      return parsed.filter((item) => {
+        return !!item && typeof item === "object" && typeof item.postsFolder === "string" && item.postsFolder.trim().length > 0;
+      });
+    } catch (e3) {
+      console.warn("Failed to parse blogTargetsJson. Expected a JSON array.");
+      return [];
+    }
+  }
+  async withWriteLock(operation) {
+    const previous = this.writeLock;
+    let release = () => {
+    };
+    this.writeLock = new Promise((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
 };

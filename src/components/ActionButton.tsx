@@ -32,7 +32,13 @@ export function ActionButton({ post, saved, hasChanges, publishing, onPublish, t
     onClick = null;
     disabled = true;
   } else if (hasChanges) {
-    label = 'Publish';
+    if (post.status === 'publish' && saved.status === 'publish') {
+      label = 'Update Live Post';
+    } else if (post.status === 'publish') {
+      label = 'Publish Live';
+    } else {
+      label = 'Save Draft';
+    }
     bg = hovered ? '#88b86a' : '#98c379';
     color = '#1e1e1e';
     glow = true;

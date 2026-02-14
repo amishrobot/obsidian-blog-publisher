@@ -5,6 +5,8 @@ export interface BlogPublisherSettings {
   repository: string;
   branch: string;
   postsFolder: string;
+  blogTargets: BlogTargetSettings[];
+  blogTargetsJson: string;
   themeFilePath: string;
   themeRepoPath: string;
   themePublishedHash: string;
@@ -13,11 +15,24 @@ export interface BlogPublisherSettings {
   themes: string[];
 }
 
+export interface BlogTargetSettings {
+  name?: string;
+  postsFolder: string;
+  repository?: string;
+  branch?: string;
+  themeFilePath?: string;
+  themeRepoPath?: string;
+  siteUrl?: string;
+  themes?: string[];
+}
+
 export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   githubToken: '',
   repository: 'amishrobot/amishrobot.com',
   branch: 'main',
   postsFolder: 'Personal/Blog/posts',
+  blogTargets: [],
+  blogTargetsJson: '',
   themeFilePath: 'Personal/Blog/settings/theme.md',
   themeRepoPath: 'content/settings/theme.md',
   themePublishedHash: '',

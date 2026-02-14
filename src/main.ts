@@ -4,13 +4,14 @@ import { PostService } from './services/PostService';
 import { GitHubService } from './services/GitHubService';
 import { ChecksService } from './services/ChecksService';
 import { ConfigService } from './services/ConfigService';
-import { BlogPublisherSettings, DEFAULT_SETTINGS } from './models/types';
+import { BlogPublisherSettings, BlogTargetSettings, DEFAULT_SETTINGS } from './models/types';
 import { SettingsTab } from './SettingsTab';
 
 export default class BlogPublisherPlugin extends Plugin {
   settings: BlogPublisherSettings;
   checksService: ChecksService;
   private configService: ConfigService;
+  private writeLock: Promise<void> = Promise.resolve();
   private refreshFastTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshSettledTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -104,8 +105,63 @@ export default class BlogPublisherPlugin extends Plugin {
   }
 
   private isPostFile(file: TFile): boolean {
-    const folder = this.settings.postsFolder.replace(/\/$/, '');
-    return file.path.startsWith(folder + '/') && file.path.endsWith('.md');
+    if (!file.path.endsWith('.md')) return false;
+    return this.resolveTargetForPath(file.path) !== null;
+  }
+
+  isPostPath(path: string): boolean {
+    if (!path.endsWith('.md')) return false;
+    return this.resolveTargetForPath(path) !== null;
+  }
+
+  private normalizeFolderPath(path: string): string {
+    return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  }
+
+  private pathMatchesFolder(path: string, folder: string): boolean {
+    const normalizedPath = this.normalizeFolderPath(path);
+    const normalizedFolder = this.normalizeFolderPath(folder);
+    if (!normalizedFolder) return false;
+    return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+  }
+
+  private resolveTargetForPath(path?: string): BlogTargetSettings | null {
+    if (!path) return null;
+    const targets = this.settings.blogTargets || [];
+    if (targets.length === 0) {
+      return this.pathMatchesFolder(path, this.settings.postsFolder)
+        ? { postsFolder: this.settings.postsFolder }
+        : null;
+    }
+
+    let best: BlogTargetSettings | null = null;
+    let bestLength = -1;
+    for (const target of targets) {
+      const folder = this.normalizeFolderPath(target.postsFolder || '');
+      if (!folder || !this.pathMatchesFolder(path, folder)) continue;
+      if (folder.length > bestLength) {
+        best = target;
+        bestLength = folder.length;
+      }
+    }
+
+    return best;
+  }
+
+  getEffectiveSettingsForPath(path?: string): BlogPublisherSettings {
+    const target = this.resolveTargetForPath(path);
+    if (!target) return this.settings;
+
+    return {
+      ...this.settings,
+      repository: target.repository ?? this.settings.repository,
+      branch: target.branch ?? this.settings.branch,
+      postsFolder: target.postsFolder || this.settings.postsFolder,
+      themeFilePath: target.themeFilePath ?? this.settings.themeFilePath,
+      themeRepoPath: target.themeRepoPath ?? this.settings.themeRepoPath,
+      siteUrl: target.siteUrl ?? this.settings.siteUrl,
+      themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes,
+    };
   }
 
   private slugify(value: string): string {
@@ -189,54 +245,65 @@ export default class BlogPublisherPlugin extends Plugin {
   // ── Publishing methods (called by PublishView) ──────────────────
 
   async publishFile(file: TFile): Promise<void> {
-    const postService = new PostService(this.app, this.settings);
-    const postData = await postService.buildPostData(file);
-    const githubService = new GitHubService(this.app, this.settings);
-    const result = await githubService.publish(postData);
+    await this.withWriteLock(async () => {
+      await this.ensurePublishDate(file);
+      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const postService = new PostService(this.app, effectiveSettings);
+      const postData = await postService.buildPostData(file);
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      const result = await githubService.publish(postData);
 
-    // Write publish metadata (don't touch status — user controls that via the panel)
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.publishedAt = new Date().toISOString();
-      fm.publishedCommit = result.commitSha;
-      fm.publishedHash = postData.publishedHash;
+      // Write publish metadata (don't touch status — user controls that via the panel)
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        fm.publishedAt = new Date().toISOString();
+        fm.publishedCommit = result.commitSha;
+        fm.publishedHash = postData.publishedHash;
+      });
     });
   }
 
   async unpublishFile(file: TFile): Promise<void> {
-    const postService = new PostService(this.app, this.settings);
-    const postData = await postService.buildPostData(file);
-    const filePaths = [postData.repoPostPath, ...postData.images.map(img => img.repoPath)];
-    const githubService = new GitHubService(this.app, this.settings);
-    await githubService.unpublish(filePaths, postData.title);
+    await this.withWriteLock(async () => {
+      await this.ensurePublishDate(file);
+      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const postService = new PostService(this.app, effectiveSettings);
+      const postData = await postService.buildPostData(file);
+      const filePaths = [postData.repoPostPath, ...postData.images.map(img => img.repoPath)];
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      await githubService.unpublish(filePaths, postData.title);
 
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      delete fm.publishedAt;
-      delete fm.publishedCommit;
-      delete fm.publishedHash;
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        delete fm.publishedAt;
+        delete fm.publishedCommit;
+        delete fm.publishedHash;
+      });
     });
   }
 
-  async publishThemeSetting(theme: string): Promise<void> {
-    const content = `---\ntheme: ${theme}\n---\n`;
-    const githubService = new GitHubService(this.app, this.settings);
+  async publishThemeSetting(theme: string, filePath?: string): Promise<void> {
+    await this.withWriteLock(async () => {
+      const effectiveSettings = this.getEffectiveSettingsForPath(filePath);
+      const content = `---\ntheme: ${theme}\n---\n`;
+      const githubService = new GitHubService(this.app, effectiveSettings);
 
-    const remoteMatches = await githubService.fileContentEquals(
-      this.settings.themeRepoPath,
-      content
-    );
-    if (remoteMatches) {
-      return;
-    }
+      const remoteMatches = await githubService.fileContentEquals(
+        effectiveSettings.themeRepoPath,
+        content
+      );
+      if (remoteMatches) {
+        return;
+      }
 
-    const commitSha = await githubService.publishTextFile(
-      this.settings.themeRepoPath,
-      content,
-      `Theme: ${theme}`
-    );
+      const commitSha = await githubService.publishTextFile(
+        effectiveSettings.themeRepoPath,
+        content,
+        `Theme: ${theme}`
+      );
 
-    this.settings.themePublishedCommit = commitSha;
-    this.settings.themePublishedHash = '';
-    await this.saveSettings();
+      this.settings.themePublishedCommit = commitSha;
+      this.settings.themePublishedHash = '';
+      await this.saveSettings();
+    });
   }
 
   // ── Settings ────────────────────────────────────────────────────
@@ -246,9 +313,59 @@ export default class BlogPublisherPlugin extends Plugin {
     const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     const stateOverrides = await this.configService.loadFromStateFile();
     this.settings = this.configService.merge(pluginData, stateOverrides);
+    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  private async ensurePublishDate(file: TFile): Promise<void> {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const current = String(fm.date || '').trim();
+      if (!current) {
+        fm.date = new Date().toISOString().slice(0, 10);
+      }
+    });
+  }
+
+  private resolveBlogTargets(
+    targets: BlogTargetSettings[] | undefined,
+    blogTargetsJson: string | undefined
+  ): BlogTargetSettings[] {
+    if (targets && targets.length > 0) {
+      return targets;
+    }
+
+    const raw = (blogTargetsJson || '').trim();
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item): item is BlogTargetSettings => {
+        return !!item && typeof item === 'object'
+          && typeof (item as BlogTargetSettings).postsFolder === 'string'
+          && (item as BlogTargetSettings).postsFolder.trim().length > 0;
+      });
+    } catch {
+      console.warn('Failed to parse blogTargetsJson. Expected a JSON array.');
+      return [];
+    }
+  }
+
+  private async withWriteLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.writeLock;
+    let release: () => void = () => {};
+    this.writeLock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
 }

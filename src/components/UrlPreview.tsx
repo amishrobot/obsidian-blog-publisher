@@ -11,7 +11,8 @@ interface UrlPreviewProps {
 export function UrlPreview({ url, t }: UrlPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [hovered, hoverHandlers] = useHover();
-  const fullUrl = `https://${url}`;
+  const normalized = url.trim();
+  const fullUrl = /^https?:\/\//i.test(normalized) ? normalized : `https://${normalized}`;
 
   const copy = () => {
     navigator.clipboard.writeText(fullUrl).catch(() => {});

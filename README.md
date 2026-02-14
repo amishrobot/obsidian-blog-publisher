@@ -47,6 +47,31 @@ Required settings:
 | `repository` | GitHub repo in `owner/repo` format |
 | `postsFolder` | Vault path to blog posts |
 | `themes` | Available site themes |
+| `blogTargets` | Optional YAML array for per-folder repo/site/theme routing |
+| `blogTargetsJson` | Optional JSON fallback when state file isn’t used |
+
+Optional multi-blog routing (`_state/blog-config.md`):
+
+```yaml
+blogTargets:
+  - name: AmishRobot
+    postsFolder: Blogs/AmishRobot/posts
+    repository: amishrobot/amishrobot.com
+    branch: main
+    siteUrl: https://amishrobot.com
+    themeFilePath: Blogs/AmishRobot/settings/theme.md
+    themeRepoPath: content/settings/theme.md
+    themes: [classic, paper, spruce, midnight, soviet]
+  - name: Charming
+    postsFolder: Blogs/charming/posts
+    repository: joshpenrod/charmingweb
+    branch: main
+    siteUrl: https://thischarmingweb.com
+    themeFilePath: Blogs/charming/settings/theme.md
+    themeRepoPath: content/settings/theme.md
+```
+
+If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior using `postsFolder`.
 
 ## Tech Stack
 

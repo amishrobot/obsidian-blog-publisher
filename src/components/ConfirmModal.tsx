@@ -36,12 +36,24 @@ function ConfirmButton({ label, onClick, bg, color, border }: ConfirmButtonProps
 interface ConfirmModalProps {
   changes: Change[];
   hasChanges: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
   t: ThemePalette;
 }
 
-export function ConfirmModal({ changes, hasChanges, onConfirm, onCancel, t }: ConfirmModalProps) {
+export function ConfirmModal({
+  changes,
+  hasChanges,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  t
+}: ConfirmModalProps) {
   return (
     <div style={{
       position: 'absolute', inset: 0,
@@ -56,10 +68,10 @@ export function ConfirmModal({ changes, hasChanges, onConfirm, onCancel, t }: Co
         animation: 'modalIn 0.25s ease',
       }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: t.heading }}>
-          Publish changes?
+          {title}
         </div>
         <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
-          This will run checks, update frontmatter, and trigger a Vercel deploy. Your build pipeline will handle the rest.
+          {description}
         </div>
         {hasChanges && (
           <div style={{ padding: '8px 10px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}`, marginBottom: 12 }}>
@@ -69,7 +81,7 @@ export function ConfirmModal({ changes, hasChanges, onConfirm, onCancel, t }: Co
         )}
         <div style={{ display: 'flex', gap: 8 }}>
           <ConfirmButton label="Cancel" onClick={onCancel} bg="transparent" color={t.textMuted} border={t.border} />
-          <ConfirmButton label="Publish" onClick={onConfirm} bg="#98c379" color="#1e1e1e" />
+          <ConfirmButton label={confirmLabel} onClick={onConfirm} bg="#98c379" color="#1e1e1e" />
         </div>
       </div>
     </div>

@@ -67,6 +67,19 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Blog targets (JSON)')
+      .setDesc('Optional per-folder routing. Used when `_state/blog-config.md` is not present.')
+      .addTextArea((text) =>
+        text
+          .setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]')
+          .setValue(this.plugin.settings.blogTargetsJson || '')
+          .onChange(async (value) => {
+            this.plugin.settings.blogTargetsJson = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Theme settings file')
       .setDesc('Vault markdown file to publish when theme settings change')
       .addText((text) =>
@@ -120,5 +133,9 @@ export class SettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName('Multi-blog targets')
+      .setDesc('Configure `blogTargets` in `_state/blog-config.md` for per-folder repo/site routing.');
   }
 }

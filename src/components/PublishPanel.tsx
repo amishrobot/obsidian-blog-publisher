@@ -65,7 +65,7 @@ export function PublishPanel({
   const [checks, setChecks] = useState<Record<string, boolean | 'running'>>({});
   const [justPassed, setJustPassed] = useState<Record<string, boolean>>({});
   const [checksRunning, setChecksRunning] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<'publish' | 'unpublish' | null>(null);
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null);
   const [toastExiting, setToastExiting] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState(settings.themes[0] || 'classic');
@@ -81,7 +81,8 @@ export function PublishPanel({
   const readingTime = Math.max(1, Math.ceil(post.wordCount / 238));
   const statusConfig = STATUS_CONFIG[post.status] || STATUS_CONFIG.draft;
 
-  const siteUrl = `amishrobot.com/${post.date.match(/^(\d{4})/)?.[1] || ''}/${post.slug}`;
+  const normalizedSiteUrl = settings.siteUrl.replace(/\/+$/, '');
+  const siteUrl = `${normalizedSiteUrl}/${post.date.match(/^(\d{4})/)?.[1] || ''}/${post.slug}`;
 
   useEffect(() => {
     const liveTheme = settings.themes[0] || 'classic';
@@ -122,11 +123,30 @@ export function PublishPanel({
   }, [onRunChecks, showToast]);
 
   const handlePublish = () => {
-    setShowConfirm(true);
+    setConfirmMode('publish');
+  };
+
+  const handleUnpublish = () => {
+    setConfirmMode('unpublish');
   };
 
   const confirmAction = useCallback(async () => {
-    setShowConfirm(false);
+    const mode = confirmMode;
+    setConfirmMode(null);
+    if (!mode) return;
+
+    if (mode === 'unpublish') {
+      setPublishing(true);
+      try {
+        await onUnpublish();
+        showToast('Post unpublished (removed from live site)', '#e5c07b');
+      } catch (e: any) {
+        showToast(`Unpublish failed: ${e?.message || e}`, '#e06c75');
+      } finally {
+        setPublishing(false);
+      }
+      return;
+    }
 
     // Run checks first
     setChecks({});
@@ -147,7 +167,8 @@ export function PublishPanel({
 
       if (!passed) {
         setChecksRunning(false);
-        showToast(`Check failed: ${check.label}`, '#e06c75');
+        const detail = result?.message ? ` (${result.message})` : '';
+        showToast(`Check failed: ${check.label}${detail}`, '#e06c75');
         return;
       }
     }
@@ -162,7 +183,7 @@ export function PublishPanel({
       await onPublish();
       const statusLabel = (STATUS_CONFIG[post.status]?.label || 'unknown').toLowerCase();
       const toastMsg = post.status === 'publish'
-        ? 'Deploy triggered \u2014 post going live'
+        ? (saved.status === 'publish' ? 'Deploy triggered \u2014 updating live post' : 'Deploy triggered \u2014 post going live')
         : `Deploy triggered \u2014 status: ${statusLabel}`;
       showToast(toastMsg, '#98c379');
     } catch (e: any) {
@@ -170,7 +191,7 @@ export function PublishPanel({
     } finally {
       setPublishing(false);
     }
-  }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, showToast]);
+  }, [confirmMode, onRunChecks, onPublish, onThemeChange, onUnpublish, selectedTheme, settings.themes, post.status, saved.status, showToast]);
 
   return (
     <div style={{
@@ -312,6 +333,11 @@ export function PublishPanel({
       {/* Bottom Action */}
       <div style={{ flexShrink: 0 }}>
         <div style={{ padding: '10px 14px', borderTop: `1px solid ${t.border}`, transition: 'border-color 0.4s ease' }}>
+          {saved.status === 'publish' && (
+            <div style={{ marginBottom: 8 }}>
+              <HoverButton onClick={handleUnpublish} t={t}>Unpublish</HoverButton>
+            </div>
+          )}
           <ActionButton
             post={post} saved={saved} hasChanges={hasChanges}
             publishing={publishing}
@@ -323,12 +349,19 @@ export function PublishPanel({
       </div>
 
       {/* Confirmation Overlay */}
-      {showConfirm && (
+      {confirmMode && (
         <ConfirmModal
           changes={changes}
-          hasChanges={hasChanges}
+          hasChanges={confirmMode === 'publish' && hasChanges}
+          title={confirmMode === 'publish' ? 'Publish changes?' : 'Unpublish this post?'}
+          description={
+            confirmMode === 'publish'
+              ? 'This will run checks, update frontmatter, and trigger a deploy.'
+              : 'This removes the post (and its uploaded images) from the GitHub repo and live site.'
+          }
+          confirmLabel={confirmMode === 'publish' ? 'Publish' : 'Unpublish'}
           onConfirm={confirmAction}
-          onCancel={() => setShowConfirm(false)}
+          onCancel={() => setConfirmMode(null)}
           t={t}
         />
       )}

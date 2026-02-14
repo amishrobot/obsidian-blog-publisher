@@ -1,5 +1,5 @@
-import { App, TFile } from 'obsidian';
-import { BlogPublisherSettings } from '../models/types';
+import { App, TFile, parseYaml } from 'obsidian';
+import { BlogPublisherSettings, BlogTargetSettings } from '../models/types';
 
 const STATE_FILE_PATH = '_state/blog-config.md';
 
@@ -21,75 +21,142 @@ export class ConfigService {
   parseStateFile(content: string): Partial<BlogPublisherSettings> {
     const settings: Partial<BlogPublisherSettings> = {};
 
-    // Strip YAML frontmatter delimiters if present
-    const body = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    // Strip YAML frontmatter delimiters if present.
+    const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(body);
+    } catch {
+      return this.parseLineBased(content);
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      return this.parseLineBased(content);
+    }
 
+    const data = parsed as Record<string, unknown>;
+    this.setStringValue(settings, 'githubToken', data.githubToken);
+    this.setStringValue(settings, 'repository', data.repository);
+    this.setStringValue(settings, 'branch', data.branch);
+    this.setStringValue(settings, 'postsFolder', data.postsFolder);
+    this.setStringValue(settings, 'blogTargetsJson', data.blogTargetsJson);
+    this.setStringValue(settings, 'themeFilePath', data.themeFilePath);
+    this.setStringValue(settings, 'themeRepoPath', data.themeRepoPath);
+    this.setStringValue(settings, 'siteUrl', data.siteUrl);
+    this.setListValue(settings, 'themes', data.themes);
+    this.setTargetListValue(settings, data.blogTargets);
+
+    return settings;
+  }
+
+  private setStringValue(
+    settings: Partial<BlogPublisherSettings>,
+    key: keyof BlogPublisherSettings,
+    value: unknown
+  ): void {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      (settings as Record<string, unknown>)[key] = value.trim();
+    }
+  }
+
+  private setListValue(
+    settings: Partial<BlogPublisherSettings>,
+    key: string,
+    values: unknown
+  ): void {
+    if (key === 'themes' && Array.isArray(values)) {
+      settings.themes = values
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value.length > 0);
+    }
+  }
+
+  private setTargetListValue(
+    settings: Partial<BlogPublisherSettings>,
+    value: unknown
+  ): void {
+    if (!Array.isArray(value)) return;
+
+    const targets: BlogTargetSettings[] = value
+      .map((item) => this.parseTarget(item))
+      .filter((item): item is BlogTargetSettings => item !== null);
+
+    if (targets.length > 0) {
+      settings.blogTargets = targets;
+    }
+  }
+
+  private parseTarget(input: unknown): BlogTargetSettings | null {
+    if (!input || typeof input !== 'object') return null;
+    const row = input as Record<string, unknown>;
+    if (typeof row.postsFolder !== 'string' || row.postsFolder.trim().length === 0) {
+      return null;
+    }
+
+    const target: BlogTargetSettings = { postsFolder: row.postsFolder.trim() };
+
+    if (typeof row.name === 'string' && row.name.trim().length > 0) target.name = row.name.trim();
+    if (typeof row.repository === 'string' && row.repository.trim().length > 0) target.repository = row.repository.trim();
+    if (typeof row.branch === 'string' && row.branch.trim().length > 0) target.branch = row.branch.trim();
+    if (typeof row.themeFilePath === 'string' && row.themeFilePath.trim().length > 0) target.themeFilePath = row.themeFilePath.trim();
+    if (typeof row.themeRepoPath === 'string' && row.themeRepoPath.trim().length > 0) target.themeRepoPath = row.themeRepoPath.trim();
+    if (typeof row.siteUrl === 'string' && row.siteUrl.trim().length > 0) target.siteUrl = row.siteUrl.trim();
+    if (Array.isArray(row.themes)) {
+      target.themes = row.themes
+        .map((theme) => (typeof theme === 'string' ? theme.trim() : ''))
+        .filter((theme) => theme.length > 0);
+    }
+
+    return target;
+  }
+
+  private parseLineBased(content: string): Partial<BlogPublisherSettings> {
+    const settings: Partial<BlogPublisherSettings> = {};
+    const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
     const lines = body.split('\n');
     let currentKey: string | null = null;
     let listValues: string[] = [];
 
     for (const line of lines) {
-      // Skip comments and empty lines
-      if (line.startsWith('#') || line.trim() === '') {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
         if (currentKey && listValues.length > 0) {
           this.setListValue(settings, currentKey, listValues);
-          currentKey = null;
-          listValues = [];
         }
+        currentKey = null;
+        listValues = [];
         continue;
       }
 
-      // List item (indented with -)
       const listMatch = line.match(/^\s+-\s+(.+)/);
       if (listMatch && currentKey) {
         listValues.push(listMatch[1].trim());
         continue;
       }
 
-      // Key: value pair
       const kvMatch = line.match(/^(\w+):\s*(.*)/);
-      if (kvMatch) {
-        // Flush previous list
-        if (currentKey && listValues.length > 0) {
-          this.setListValue(settings, currentKey, listValues);
-          listValues = [];
-        }
+      if (!kvMatch) continue;
 
-        const key = kvMatch[1];
-        const value = kvMatch[2].trim();
+      if (currentKey && listValues.length > 0) {
+        this.setListValue(settings, currentKey, listValues);
+      }
 
-        if (value === '') {
-          // Next lines might be a list
-          currentKey = key;
-        } else {
-          this.setStringValue(settings, key, value);
-          currentKey = null;
-        }
+      const key = kvMatch[1];
+      const value = kvMatch[2].trim();
+      listValues = [];
+
+      if (!value) {
+        currentKey = key;
+      } else {
+        currentKey = null;
+        this.setStringValue(settings, key as keyof BlogPublisherSettings, value);
       }
     }
 
-    // Flush final list
     if (currentKey && listValues.length > 0) {
       this.setListValue(settings, currentKey, listValues);
     }
 
     return settings;
-  }
-
-  private setStringValue(settings: Partial<BlogPublisherSettings>, key: string, value: string): void {
-    const validKeys: (keyof BlogPublisherSettings)[] = [
-      'githubToken', 'repository', 'branch', 'postsFolder',
-      'themeFilePath', 'themeRepoPath', 'siteUrl',
-    ];
-    if (validKeys.includes(key as keyof BlogPublisherSettings)) {
-      (settings as any)[key] = value;
-    }
-  }
-
-  private setListValue(settings: Partial<BlogPublisherSettings>, key: string, values: string[]): void {
-    if (key === 'themes') {
-      settings.themes = values;
-    }
   }
 
   merge(pluginSettings: BlogPublisherSettings, stateOverrides: Partial<BlogPublisherSettings> | null): BlogPublisherSettings {

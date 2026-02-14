@@ -114,7 +114,7 @@ export class GitHubService {
     );
     await this.apiPatch(
       `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      { sha: commit.sha }
+      { sha: commit.sha, force: false }
     );
     return commit.sha;
   }
@@ -191,7 +191,7 @@ export class GitHubService {
     );
     await this.apiPatch(
       `/repos/${this.owner}/${this.repo}/git/refs/heads/${this.settings.branch}`,
-      { sha: commit.sha }
+      { sha: commit.sha, force: false }
     );
     return commit.sha;
   }
@@ -199,7 +199,7 @@ export class GitHubService {
   private async withRefRetry(
     operation: (headSha: string, treeSha: string) => Promise<string>
   ): Promise<string> {
-    const maxAttempts = 5;
+    const maxAttempts = 8;
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const headSha = await this.getHeadSha();
@@ -211,7 +211,7 @@ export class GitHubService {
         if (!this.shouldRetryRefUpdate(error) || attempt === maxAttempts) {
           throw error;
         }
-        await this.sleep(attempt * 250);
+        await this.sleep(attempt * 350 + Math.floor(Math.random() * 150));
       }
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
@@ -253,7 +253,13 @@ export class GitHubService {
       const status = e?.status || 'unknown';
       let detail = '';
       try {
-        detail = JSON.stringify(e?.response?.json || e?.message || e);
+        detail = JSON.stringify(
+          e?.response?.json
+          || e?.response?.text
+          || e?.response?.body
+          || e?.message
+          || e
+        );
       } catch {
         detail = String(e);
       }
