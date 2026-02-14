@@ -14,6 +14,11 @@ interface ActionButtonProps {
 export function ActionButton({ post, saved, hasChanges, publishing, onPublish, t }: ActionButtonProps) {
   const [hovered, hoverHandlers] = useHover();
   const isPublished = post.status === 'publish';
+  const hasPublishedSnapshot = Boolean(
+    (saved.publishedAt && saved.publishedAt.trim().length > 0)
+    || (saved.publishedCommit && saved.publishedCommit.trim().length > 0)
+    || (saved.publishedHash && saved.publishedHash.trim().length > 0)
+  );
 
   let label: string, bg: string, color: string, glow: boolean, onClick: (() => void) | null, disabled: boolean;
 
@@ -25,7 +30,7 @@ export function ActionButton({ post, saved, hasChanges, publishing, onPublish, t
     onClick = null;
     disabled = true;
   } else if (isPublished) {
-    label = hasChanges || saved.status === 'publish' ? 'Update' : 'Publish';
+    label = hasPublishedSnapshot ? 'Update' : 'Publish';
     bg = hovered ? '#88b86a' : '#98c379';
     color = '#1e1e1e';
     glow = true;

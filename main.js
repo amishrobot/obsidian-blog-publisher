@@ -1062,6 +1062,9 @@ function ChangeRow({ change, t: t3 }) {
 function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 }) {
   const [hovered, hoverHandlers] = useHover();
   const isPublished = post.status === "publish";
+  const hasPublishedSnapshot = Boolean(
+    saved.publishedAt && saved.publishedAt.trim().length > 0 || saved.publishedCommit && saved.publishedCommit.trim().length > 0 || saved.publishedHash && saved.publishedHash.trim().length > 0
+  );
   let label, bg, color, glow, onClick, disabled;
   if (publishing) {
     label = "Deploying";
@@ -1071,7 +1074,7 @@ function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 })
     onClick = null;
     disabled = true;
   } else if (isPublished) {
-    label = hasChanges || saved.status === "publish" ? "Update" : "Publish";
+    label = hasPublishedSnapshot ? "Update" : "Publish";
     bg = hovered ? "#88b86a" : "#98c379";
     color = "#1e1e1e";
     glow = true;

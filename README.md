@@ -92,7 +92,7 @@ Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.15`
+- Canonical current release: `v2.0.16`
 - See full notes in `CHANGELOG.md`
 - `v2.0.10` exists but is superseded by `v2.0.11+`
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.16 (2026-02-14)
+- Fixed primary action label logic:
+  - New notes (never published) now show `Publish`
+  - Previously published notes show `Update`
+- Keeps update-first behavior for already-live posts without forcing draft/unpublish cycle.
+
 ## v2.0.15 (2026-02-14)
 - Fixed Charming publish model to align with Astro schema/routes:
   - Writes `published` frontmatter (from `date` when missing)
