@@ -5,6 +5,8 @@ export interface BlogPublisherSettings {
   repository: string;
   branch: string;
   postsFolder: string;
+  repoPostsPath: string;
+  repoImagesPath: string;
   blogTargets: BlogTargetSettings[];
   blogTargetsJson: string;
   themeFilePath: string;
@@ -20,6 +22,8 @@ export interface BlogTargetSettings {
   postsFolder: string;
   repository?: string;
   branch?: string;
+  repoPostsPath?: string;
+  repoImagesPath?: string;
   themeFilePath?: string;
   themeRepoPath?: string;
   siteUrl?: string;
@@ -31,6 +35,8 @@ export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   repository: 'amishrobot/amishrobot.com',
   branch: 'main',
   postsFolder: 'Personal/Blog/posts',
+  repoPostsPath: 'content/posts',
+  repoImagesPath: 'public/_assets/images',
   blogTargets: [],
   blogTargetsJson: '',
   themeFilePath: 'Personal/Blog/settings/theme.md',

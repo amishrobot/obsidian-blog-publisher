@@ -38,6 +38,8 @@ export class ConfigService {
     this.setStringValue(settings, 'repository', data.repository);
     this.setStringValue(settings, 'branch', data.branch);
     this.setStringValue(settings, 'postsFolder', data.postsFolder);
+    this.setStringValue(settings, 'repoPostsPath', data.repoPostsPath);
+    this.setStringValue(settings, 'repoImagesPath', data.repoImagesPath);
     this.setStringValue(settings, 'blogTargetsJson', data.blogTargetsJson);
     this.setStringValue(settings, 'themeFilePath', data.themeFilePath);
     this.setStringValue(settings, 'themeRepoPath', data.themeRepoPath);
@@ -97,6 +99,8 @@ export class ConfigService {
     if (typeof row.name === 'string' && row.name.trim().length > 0) target.name = row.name.trim();
     if (typeof row.repository === 'string' && row.repository.trim().length > 0) target.repository = row.repository.trim();
     if (typeof row.branch === 'string' && row.branch.trim().length > 0) target.branch = row.branch.trim();
+    if (typeof row.repoPostsPath === 'string' && row.repoPostsPath.trim().length > 0) target.repoPostsPath = row.repoPostsPath.trim();
+    if (typeof row.repoImagesPath === 'string' && row.repoImagesPath.trim().length > 0) target.repoImagesPath = row.repoImagesPath.trim();
     if (typeof row.themeFilePath === 'string' && row.themeFilePath.trim().length > 0) target.themeFilePath = row.themeFilePath.trim();
     if (typeof row.themeRepoPath === 'string' && row.themeRepoPath.trim().length > 0) target.themeRepoPath = row.themeRepoPath.trim();
     if (typeof row.siteUrl === 'string' && row.siteUrl.trim().length > 0) target.siteUrl = row.siteUrl.trim();

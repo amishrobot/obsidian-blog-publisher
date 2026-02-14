@@ -9,6 +9,7 @@ Built for [amishrobot.com](https://amishrobot.com).
 - **Side panel UI** — status, theme, slug, tags, URL preview, change tracking
 - **Publish** — pushes post markdown + images to GitHub via the git tree API; Vercel auto-deploys
 - **Update-first published flow** — published posts can be updated directly via the bottom `Update` action
+- **Multi-site routing** — routes files by path to AmishRobot vs. Charming targets
 - **Pre-publish checks** — validates frontmatter, slug format, links, and images before deploy
 - **Theme selection** — switch between site themes (Classic, Paper, Spruce, Midnight)
 - **Change tracking** — shows pending changes vs. last published state
@@ -59,42 +60,57 @@ blogTargets:
     repository: amishrobot/amishrobot.com
     branch: main
     siteUrl: https://amishrobot.com
+    repoPostsPath: content/posts
+    repoImagesPath: public/_assets/images
     themeFilePath: Blogs/AmishRobot/settings/theme.md
     themeRepoPath: content/settings/theme.md
     themes: [classic, paper, spruce, midnight, soviet]
   - name: Charming
-    postsFolder: Blogs/charming/posts
-    repository: joshpenrod/charmingweb
+    postsFolder: Blogs/Charming/posts
+    repository: amishrobot/charmingweb.com
     branch: main
     siteUrl: https://thischarmingweb.com
-    themeFilePath: Blogs/charming/settings/theme.md
+    repoPostsPath: src/content/posts
+    repoImagesPath: public/_assets/images
+    themeFilePath: Blogs/Charming/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
 
 If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior using `postsFolder`.
 
+Routing rules:
+
+1. Exact target mapping by longest `blogTargets[].postsFolder` prefix.
+2. Legacy fallback remains supported for `Blog/posts/**` and `Personal/Blog/posts/**`.
+3. Unknown paths are not treated as publishable post paths.
+
+Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
+
 ## Releases
 
-- Canonical current release: `v2.0.11`
+- Canonical current release: `v2.0.13`
 - See full notes in `CHANGELOG.md`
-- `v2.0.10` exists but is superseded by `v2.0.11`
+- `v2.0.10` exists but is superseded by `v2.0.11+`
 
 ## Regression Checklist
 
 Run this before every release:
 
-1. `npm run build` succeeds and updates `main.js`.
-2. `package.json` + `manifest.json` versions match.
-3. Vault plugin install has same version as repo manifest.
-4. BRAT release exists with assets: `main.js`, `manifest.json`, `styles.css`.
-5. Open published post in Obsidian panel: bottom action reads `Update` and is enabled.
-6. Edit a published post (slug/tag/content), click `Update`, and confirm new commit SHA in frontmatter.
-7. Verify live page content changed at the expected URL.
-8. Verify image rendering for filenames with spaces/special chars.
-9. Verify `date` auto-fills only when missing and does not overwrite existing dates.
-10. Verify multi-blog routing:
-   `Blogs/AmishRobot/posts` -> `amishrobot/amishrobot.com`
-   `Blogs/charming/posts` -> `joshpenrod/charmingweb`
+1. `npm test` passes.
+2. `npm run build` succeeds and updates `main.js`.
+3. `package.json` + `manifest.json` versions match.
+4. Vault plugin install has same version as repo manifest.
+5. BRAT release exists with assets: `main.js`, `manifest.json`, `styles.css`.
+6. Open published post in Obsidian panel: bottom action reads `Update` and is enabled.
+7. Edit a published post (slug/tag/content), click `Update`, and confirm new commit SHA in frontmatter.
+8. Verify live page content changed at the expected URL.
+9. Verify image rendering for filenames with spaces/special chars.
+10. Verify `date` auto-fills only when missing and does not overwrite existing dates.
+11. Verify multi-blog routing:
+    `Blogs/AmishRobot/posts` -> `amishrobot/amishrobot.com`
+    `Blogs/Charming/posts` -> `amishrobot/charmingweb.com`
+12. Verify legacy fallback routing:
+    `Blog/posts` -> default target (AmishRobot).
 
 ## Tech Stack
 
@@ -109,6 +125,7 @@ Run this before every release:
 
 ```bash
 npm install
+npm test
 npm run dev    # watch mode
 npm run build  # production build
 ```

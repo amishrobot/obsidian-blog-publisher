@@ -32,7 +32,8 @@ export class PostService {
     const images = await this.resolveImages(content, year, slug);
     const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
-    const repoPostPath = `content/posts/${year}/${slug}.md`;
+    const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || 'content/posts');
+    const repoPostPath = `${repoPostsPath}/${year}/${slug}.md`;
 
     return {
       title,
@@ -85,7 +86,7 @@ export class PostService {
       images.push({
         vaultPath: resolved.path,
         filename,
-        repoPath: `public/_assets/images/${year}/${slug}/${filename}`,
+        repoPath: `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${year}/${slug}/${filename}`,
         originalWikilink: match[0],
       });
     }
@@ -120,6 +121,10 @@ export class PostService {
       || 'image';
 
     return `${cleanBase}${ext}`;
+  }
+
+  private normalizeRepoPath(path: string): string {
+    return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
   }
 
   async computeHash(transformedMarkdown: string, images: ImageData[]): Promise<string> {

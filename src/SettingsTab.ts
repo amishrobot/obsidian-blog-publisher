@@ -67,6 +67,32 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Repo posts path')
+      .setDesc('Path in target repo where markdown posts are committed')
+      .addText((text) =>
+        text
+          .setPlaceholder('content/posts')
+          .setValue(this.plugin.settings.repoPostsPath)
+          .onChange(async (value) => {
+            this.plugin.settings.repoPostsPath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Repo images path')
+      .setDesc('Path in target repo where published images are committed')
+      .addText((text) =>
+        text
+          .setPlaceholder('public/_assets/images')
+          .setValue(this.plugin.settings.repoImagesPath)
+          .onChange(async (value) => {
+            this.plugin.settings.repoImagesPath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Blog targets (JSON)')
       .setDesc('Optional per-folder routing. Used when `_state/blog-config.md` is not present.')
       .addTextArea((text) =>

@@ -501,6 +501,8 @@ var DEFAULT_SETTINGS = {
   repository: "amishrobot/amishrobot.com",
   branch: "main",
   postsFolder: "Personal/Blog/posts",
+  repoPostsPath: "content/posts",
+  repoImagesPath: "public/_assets/images",
   blogTargets: [],
   blogTargetsJson: "",
   themeFilePath: "Personal/Blog/settings/theme.md",
@@ -1587,7 +1589,8 @@ var PostService = class {
     const images = await this.resolveImages(content, year, slug);
     const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
-    const repoPostPath = `content/posts/${year}/${slug}.md`;
+    const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || "content/posts");
+    const repoPostPath = `${repoPostsPath}/${year}/${slug}.md`;
     return {
       title,
       date,
@@ -1631,7 +1634,7 @@ var PostService = class {
       images.push({
         vaultPath: resolved.path,
         filename,
-        repoPath: `public/_assets/images/${year}/${slug}/${filename}`,
+        repoPath: `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${year}/${slug}/${filename}`,
         originalWikilink: match[0]
       });
     }
@@ -1656,6 +1659,9 @@ var PostService = class {
     const ext = hasExt ? filename.slice(dotIndex).toLowerCase() : "";
     const cleanBase = base.normalize("NFKD").replace(/[^\x00-\x7F]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "image";
     return `${cleanBase}${ext}`;
+  }
+  normalizeRepoPath(path) {
+    return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
   }
   async computeHash(transformedMarkdown, images) {
     const parts = [transformedMarkdown];
@@ -2051,6 +2057,8 @@ var ConfigService = class {
     this.setStringValue(settings, "repository", data.repository);
     this.setStringValue(settings, "branch", data.branch);
     this.setStringValue(settings, "postsFolder", data.postsFolder);
+    this.setStringValue(settings, "repoPostsPath", data.repoPostsPath);
+    this.setStringValue(settings, "repoImagesPath", data.repoImagesPath);
     this.setStringValue(settings, "blogTargetsJson", data.blogTargetsJson);
     this.setStringValue(settings, "themeFilePath", data.themeFilePath);
     this.setStringValue(settings, "themeRepoPath", data.themeRepoPath);
@@ -2091,6 +2099,10 @@ var ConfigService = class {
       target.repository = row.repository.trim();
     if (typeof row.branch === "string" && row.branch.trim().length > 0)
       target.branch = row.branch.trim();
+    if (typeof row.repoPostsPath === "string" && row.repoPostsPath.trim().length > 0)
+      target.repoPostsPath = row.repoPostsPath.trim();
+    if (typeof row.repoImagesPath === "string" && row.repoImagesPath.trim().length > 0)
+      target.repoImagesPath = row.repoImagesPath.trim();
     if (typeof row.themeFilePath === "string" && row.themeFilePath.trim().length > 0)
       target.themeFilePath = row.themeFilePath.trim();
     if (typeof row.themeRepoPath === "string" && row.themeRepoPath.trim().length > 0)
@@ -2185,6 +2197,18 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian6.Setting(containerEl).setName("Repo posts path").setDesc("Path in target repo where markdown posts are committed").addText(
+      (text) => text.setPlaceholder("content/posts").setValue(this.plugin.settings.repoPostsPath).onChange(async (value) => {
+        this.plugin.settings.repoPostsPath = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(containerEl).setName("Repo images path").setDesc("Path in target repo where published images are committed").addText(
+      (text) => text.setPlaceholder("public/_assets/images").setValue(this.plugin.settings.repoImagesPath).onChange(async (value) => {
+        this.plugin.settings.repoImagesPath = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_state/blog-config.md` is not present.").addTextArea(
       (text) => text.setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
         this.plugin.settings.blogTargetsJson = value;
@@ -2218,6 +2242,69 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
     new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_state/blog-config.md` for per-folder repo/site routing.");
   }
 };
+
+// src/utils/targetRouting.ts
+var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
+function normalizeFolderPath(path) {
+  return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+}
+function pathMatchesFolder(path, folder) {
+  const normalizedPath = normalizeFolderPath(path);
+  const normalizedFolder = normalizeFolderPath(folder);
+  if (!normalizedFolder)
+    return false;
+  return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+}
+function legacyFolders(settings) {
+  const configured = normalizeFolderPath(settings.postsFolder || "");
+  const merged = [configured, ...LEGACY_POSTS_FOLDERS.map(normalizeFolderPath)];
+  return [...new Set(merged.filter(Boolean))];
+}
+function resolveTargetForPath(path, settings) {
+  if (!path)
+    return null;
+  const targets = settings.blogTargets || [];
+  if (targets.length === 0) {
+    return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
+  }
+  let best = null;
+  let bestLength = -1;
+  for (const target of targets) {
+    const folder = normalizeFolderPath(target.postsFolder || "");
+    if (!folder || !pathMatchesFolder(path, folder))
+      continue;
+    if (folder.length > bestLength) {
+      best = target;
+      bestLength = folder.length;
+    }
+  }
+  if (best)
+    return best;
+  return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
+}
+function isPostPath(path, settings) {
+  if (!path.endsWith(".md"))
+    return false;
+  return resolveTargetForPath(path, settings) !== null;
+}
+function getEffectiveSettingsForPath(path, settings) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const target = resolveTargetForPath(path, settings);
+  if (!target)
+    return settings;
+  return {
+    ...settings,
+    repository: (_a = target.repository) != null ? _a : settings.repository,
+    branch: (_b = target.branch) != null ? _b : settings.branch,
+    postsFolder: target.postsFolder || settings.postsFolder,
+    repoPostsPath: (_c = target.repoPostsPath) != null ? _c : settings.repoPostsPath,
+    repoImagesPath: (_d = target.repoImagesPath) != null ? _d : settings.repoImagesPath,
+    themeFilePath: (_e = target.themeFilePath) != null ? _e : settings.themeFilePath,
+    themeRepoPath: (_f = target.themeRepoPath) != null ? _f : settings.themeRepoPath,
+    siteUrl: (_g = target.siteUrl) != null ? _g : settings.siteUrl,
+    themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes
+  };
+}
 
 // src/main.ts
 var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
@@ -2303,60 +2390,16 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     console.log("Unloading Blog Publisher v2");
   }
   isPostFile(file) {
-    if (!file.path.endsWith(".md"))
-      return false;
-    return this.resolveTargetForPath(file.path) !== null;
+    return isPostPath(file.path, this.settings);
   }
   isPostPath(path) {
-    if (!path.endsWith(".md"))
-      return false;
-    return this.resolveTargetForPath(path) !== null;
-  }
-  normalizeFolderPath(path) {
-    return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  }
-  pathMatchesFolder(path, folder) {
-    const normalizedPath = this.normalizeFolderPath(path);
-    const normalizedFolder = this.normalizeFolderPath(folder);
-    if (!normalizedFolder)
-      return false;
-    return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+    return isPostPath(path, this.settings);
   }
   resolveTargetForPath(path) {
-    if (!path)
-      return null;
-    const targets = this.settings.blogTargets || [];
-    if (targets.length === 0) {
-      return this.pathMatchesFolder(path, this.settings.postsFolder) ? { postsFolder: this.settings.postsFolder } : null;
-    }
-    let best = null;
-    let bestLength = -1;
-    for (const target of targets) {
-      const folder = this.normalizeFolderPath(target.postsFolder || "");
-      if (!folder || !this.pathMatchesFolder(path, folder))
-        continue;
-      if (folder.length > bestLength) {
-        best = target;
-        bestLength = folder.length;
-      }
-    }
-    return best;
+    return resolveTargetForPath(path, this.settings);
   }
   getEffectiveSettingsForPath(path) {
-    var _a, _b, _c, _d, _e;
-    const target = this.resolveTargetForPath(path);
-    if (!target)
-      return this.settings;
-    return {
-      ...this.settings,
-      repository: (_a = target.repository) != null ? _a : this.settings.repository,
-      branch: (_b = target.branch) != null ? _b : this.settings.branch,
-      postsFolder: target.postsFolder || this.settings.postsFolder,
-      themeFilePath: (_c = target.themeFilePath) != null ? _c : this.settings.themeFilePath,
-      themeRepoPath: (_d = target.themeRepoPath) != null ? _d : this.settings.themeRepoPath,
-      siteUrl: (_e = target.siteUrl) != null ? _e : this.settings.siteUrl,
-      themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes
-    };
+    return getEffectiveSettingsForPath(path, this.settings);
   }
   slugify(value) {
     return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");

@@ -1,11 +1,12 @@
 {
   "name": "obsidian-blog-publisher",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "Publish blog posts from Obsidian to GitHub with a visual side panel",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production",
+    "test": "vitest run"
   },
   "keywords": [
     "obsidian",
@@ -19,7 +20,8 @@
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.17.0",
     "obsidian": "latest",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^0.34.6"
   },
   "dependencies": {
     "preact": "^10.25.0"

@@ -6,6 +6,7 @@ import { ChecksService } from './services/ChecksService';
 import { ConfigService } from './services/ConfigService';
 import { BlogPublisherSettings, BlogTargetSettings, DEFAULT_SETTINGS } from './models/types';
 import { SettingsTab } from './SettingsTab';
+import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath } from './utils/targetRouting';
 
 export default class BlogPublisherPlugin extends Plugin {
   settings: BlogPublisherSettings;
@@ -105,63 +106,19 @@ export default class BlogPublisherPlugin extends Plugin {
   }
 
   private isPostFile(file: TFile): boolean {
-    if (!file.path.endsWith('.md')) return false;
-    return this.resolveTargetForPath(file.path) !== null;
+    return isPostPath(file.path, this.settings);
   }
 
   isPostPath(path: string): boolean {
-    if (!path.endsWith('.md')) return false;
-    return this.resolveTargetForPath(path) !== null;
-  }
-
-  private normalizeFolderPath(path: string): string {
-    return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  }
-
-  private pathMatchesFolder(path: string, folder: string): boolean {
-    const normalizedPath = this.normalizeFolderPath(path);
-    const normalizedFolder = this.normalizeFolderPath(folder);
-    if (!normalizedFolder) return false;
-    return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+    return isPostPath(path, this.settings);
   }
 
   private resolveTargetForPath(path?: string): BlogTargetSettings | null {
-    if (!path) return null;
-    const targets = this.settings.blogTargets || [];
-    if (targets.length === 0) {
-      return this.pathMatchesFolder(path, this.settings.postsFolder)
-        ? { postsFolder: this.settings.postsFolder }
-        : null;
-    }
-
-    let best: BlogTargetSettings | null = null;
-    let bestLength = -1;
-    for (const target of targets) {
-      const folder = this.normalizeFolderPath(target.postsFolder || '');
-      if (!folder || !this.pathMatchesFolder(path, folder)) continue;
-      if (folder.length > bestLength) {
-        best = target;
-        bestLength = folder.length;
-      }
-    }
-
-    return best;
+    return resolveTargetForPath(path, this.settings);
   }
 
   getEffectiveSettingsForPath(path?: string): BlogPublisherSettings {
-    const target = this.resolveTargetForPath(path);
-    if (!target) return this.settings;
-
-    return {
-      ...this.settings,
-      repository: target.repository ?? this.settings.repository,
-      branch: target.branch ?? this.settings.branch,
-      postsFolder: target.postsFolder || this.settings.postsFolder,
-      themeFilePath: target.themeFilePath ?? this.settings.themeFilePath,
-      themeRepoPath: target.themeRepoPath ?? this.settings.themeRepoPath,
-      siteUrl: target.siteUrl ?? this.settings.siteUrl,
-      themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes,
-    };
+    return getEffectiveSettingsForPath(path, this.settings);
   }
 
   private slugify(value: string): string {

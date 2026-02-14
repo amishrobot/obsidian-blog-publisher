@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.13 (2026-02-14)
+- Added deterministic routing test suite (`vitest`) for multi-site + legacy fallback behavior.
+- Added path-routing utility and wired plugin routing through it.
+- Added legacy fallback support for `Blog/posts/**` and `Personal/Blog/posts/**` when multi-target mapping is enabled.
+- Added per-target repo publish roots:
+  - `repoPostsPath` (e.g. `content/posts` vs `src/content/posts`)
+  - `repoImagesPath` (defaults to `public/_assets/images`)
+- Updated docs with formal multi-site routing runbook and regression checklist updates.
+
 ## v2.0.12 (2026-02-14)
 - Removed publish/update confirmation modal.
 - Bottom action now triggers checks + deploy immediately on click.
