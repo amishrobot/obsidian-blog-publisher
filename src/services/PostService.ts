@@ -1,4 +1,4 @@
-import { App, TFile, parseYaml } from 'obsidian';
+import { App, TFile, parseYaml, stringifyYaml } from 'obsidian';
 import { BlogPublisherSettings, PostData, ImageData } from '../models/types';
 
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'bmp']);
@@ -29,11 +29,15 @@ export class PostService {
     const yearMatch = date.match(/^(\d{4})/);
     if (!yearMatch) throw new Error(`Invalid date format: ${date}`);
     const year = yearMatch[1];
-    const images = await this.resolveImages(content, year, slug);
-    const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
+    const urlFormat = this.resolveUrlFormat();
+    const images = await this.resolveImages(content, year, slug, urlFormat);
+    const withTargetFrontmatter = this.rewriteFrontmatterForTarget(content, fm, date, slug, urlFormat);
+    const transformedMarkdown = this.rewriteImageLinks(withTargetFrontmatter, images, year, slug, urlFormat);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
     const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || 'content/posts');
-    const repoPostPath = `${repoPostsPath}/${year}/${slug}.md`;
+    const repoPostPath = urlFormat === 'posts-slug'
+      ? `${repoPostsPath}/${slug}.md`
+      : `${repoPostsPath}/${year}/${slug}.md`;
 
     return {
       title,
@@ -55,7 +59,7 @@ export class PostService {
       .replace(/^-|-$/g, '');
   }
 
-  async resolveImages(content: string, year: string, slug: string): Promise<ImageData[]> {
+  async resolveImages(content: string, year: string, slug: string, urlFormat: 'year-slug' | 'posts-slug'): Promise<ImageData[]> {
     const images: ImageData[] = [];
     const usedFilenames = new Set<string>();
     const re = /!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/g;
@@ -86,7 +90,9 @@ export class PostService {
       images.push({
         vaultPath: resolved.path,
         filename,
-        repoPath: `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${year}/${slug}/${filename}`,
+        repoPath: urlFormat === 'posts-slug'
+          ? `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${slug}/${filename}`
+          : `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${year}/${slug}/${filename}`,
         originalWikilink: match[0],
       });
     }
@@ -94,16 +100,41 @@ export class PostService {
     return images;
   }
 
-  rewriteImageLinks(content: string, images: ImageData[], year: string, slug: string): string {
+  rewriteImageLinks(content: string, images: ImageData[], year: string, slug: string, urlFormat: 'year-slug' | 'posts-slug'): string {
     let result = content;
     for (const img of images) {
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = altMatch?.[2]?.trim() || '';
       const encodedFilename = encodeURIComponent(img.filename);
-      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
+      const mdImage = urlFormat === 'posts-slug'
+        ? `![${alt}](/_assets/images/${slug}/${encodedFilename})`
+        : `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
       result = result.replaceAll(img.originalWikilink, mdImage);
     }
     return result;
+  }
+
+  private rewriteFrontmatterForTarget(
+    content: string,
+    fm: Record<string, unknown>,
+    date: string,
+    slug: string,
+    urlFormat: 'year-slug' | 'posts-slug'
+  ): string {
+    if (urlFormat !== 'posts-slug') return content;
+
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return content;
+
+    const next = { ...fm } as Record<string, unknown>;
+    if (!next.published) next.published = date;
+    if (!next.abbrlink) next.abbrlink = slug;
+    if (typeof next.status === 'string' && next.draft === undefined) {
+      next.draft = next.status !== 'publish';
+    }
+
+    const yaml = stringifyYaml(next).trim();
+    return content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---\n${yaml}\n---`);
   }
 
   private sanitizeFilename(filename: string): string {
@@ -125,6 +156,14 @@ export class PostService {
 
   private normalizeRepoPath(path: string): string {
     return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  }
+
+  private resolveUrlFormat(): 'year-slug' | 'posts-slug' {
+    const configured = String(this.settings.postUrlFormat || '').trim();
+    if (configured === 'posts-slug') return 'posts-slug';
+    if (configured === 'year-slug') return 'year-slug';
+    const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || '');
+    return repoPostsPath === 'src/content/posts' ? 'posts-slug' : 'year-slug';
   }
 
   async computeHash(transformedMarkdown: string, images: ImageData[]): Promise<string> {

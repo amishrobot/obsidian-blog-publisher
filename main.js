@@ -1616,11 +1616,13 @@ var PostService = class {
     if (!yearMatch)
       throw new Error(`Invalid date format: ${date}`);
     const year = yearMatch[1];
-    const images = await this.resolveImages(content, year, slug);
-    const transformedMarkdown = this.rewriteImageLinks(content, images, year, slug);
+    const urlFormat = this.resolveUrlFormat();
+    const images = await this.resolveImages(content, year, slug, urlFormat);
+    const withTargetFrontmatter = this.rewriteFrontmatterForTarget(content, fm, date, slug, urlFormat);
+    const transformedMarkdown = this.rewriteImageLinks(withTargetFrontmatter, images, year, slug, urlFormat);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
     const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || "content/posts");
-    const repoPostPath = `${repoPostsPath}/${year}/${slug}.md`;
+    const repoPostPath = urlFormat === "posts-slug" ? `${repoPostsPath}/${slug}.md` : `${repoPostsPath}/${year}/${slug}.md`;
     return {
       title,
       date,
@@ -1635,7 +1637,7 @@ var PostService = class {
   normalizeSlug(slug) {
     return slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   }
-  async resolveImages(content, year, slug) {
+  async resolveImages(content, year, slug, urlFormat) {
     var _a;
     const images = [];
     const usedFilenames = /* @__PURE__ */ new Set();
@@ -1664,23 +1666,42 @@ var PostService = class {
       images.push({
         vaultPath: resolved.path,
         filename,
-        repoPath: `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${year}/${slug}/${filename}`,
+        repoPath: urlFormat === "posts-slug" ? `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${slug}/${filename}` : `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${year}/${slug}/${filename}`,
         originalWikilink: match[0]
       });
     }
     return images;
   }
-  rewriteImageLinks(content, images, year, slug) {
+  rewriteImageLinks(content, images, year, slug, urlFormat) {
     var _a;
     let result = content;
     for (const img of images) {
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = ((_a = altMatch == null ? void 0 : altMatch[2]) == null ? void 0 : _a.trim()) || "";
       const encodedFilename = encodeURIComponent(img.filename);
-      const mdImage = `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
+      const mdImage = urlFormat === "posts-slug" ? `![${alt}](/_assets/images/${slug}/${encodedFilename})` : `![${alt}](/_assets/images/${year}/${slug}/${encodedFilename})`;
       result = result.replaceAll(img.originalWikilink, mdImage);
     }
     return result;
+  }
+  rewriteFrontmatterForTarget(content, fm, date, slug, urlFormat) {
+    if (urlFormat !== "posts-slug")
+      return content;
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch)
+      return content;
+    const next = { ...fm };
+    if (!next.published)
+      next.published = date;
+    if (!next.abbrlink)
+      next.abbrlink = slug;
+    if (typeof next.status === "string" && next.draft === void 0) {
+      next.draft = next.status !== "publish";
+    }
+    const yaml = (0, import_obsidian2.stringifyYaml)(next).trim();
+    return content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
+${yaml}
+---`);
   }
   sanitizeFilename(filename) {
     const dotIndex = filename.lastIndexOf(".");
@@ -1692,6 +1713,15 @@ var PostService = class {
   }
   normalizeRepoPath(path) {
     return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  }
+  resolveUrlFormat() {
+    const configured = String(this.settings.postUrlFormat || "").trim();
+    if (configured === "posts-slug")
+      return "posts-slug";
+    if (configured === "year-slug")
+      return "year-slug";
+    const repoPostsPath = this.normalizeRepoPath(this.settings.repoPostsPath || "");
+    return repoPostsPath === "src/content/posts" ? "posts-slug" : "year-slug";
   }
   async computeHash(transformedMarkdown, images) {
     const parts = [transformedMarkdown];

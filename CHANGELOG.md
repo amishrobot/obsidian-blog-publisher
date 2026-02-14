@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.0.15 (2026-02-14)
+- Fixed Charming publish model to align with Astro schema/routes:
+  - Writes `published` frontmatter (from `date` when missing)
+  - Writes `abbrlink` frontmatter (from `slug` when missing)
+  - Maps `status` to `draft` when needed for posts-slug targets
+- For `posts-slug` targets, publishes markdown to `src/content/posts/<slug>.md` (no forced year folder).
+- For `posts-slug` targets, rewrites published image paths to `/_assets/images/<slug>/...`.
+
 ## v2.0.14 (2026-02-14)
 - Fixed Charming target documentation to use the correct repo slug: `amishrobot/charmingweb`.
 - Added configurable post URL format (`postUrlFormat`) with support for:

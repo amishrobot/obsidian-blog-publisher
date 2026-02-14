@@ -1,7 +1,7 @@
 {
   "id": "blog-publisher",
   "name": "Blog Publisher",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "minAppVersion": "0.15.0",
   "description": "Publish blog posts from Obsidian to GitHub with a visual side panel",
   "author": "Josh Penrod",
