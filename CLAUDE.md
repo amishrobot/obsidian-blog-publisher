@@ -81,6 +81,7 @@ src/
 7. **Install to vault**: `cp main.js manifest.json styles.css ~/JoshOS/.obsidian/plugins/blog-publisher/`
 8. **Reload Obsidian** to pick up changes
 9. **Install hook once per clone**: `npm run hooks:install` (blocks `main` pushes on version bumps unless tag+release+assets exist)
+10. **Verify hook is active on this machine**: `npm run hooks:check`
 
 **WHY RELEASES MATTER:** This plugin is installed via BRAT (Beta Reviewers Auto-update Tester). BRAT requires a **GitHub Release** (not just a git tag) with `main.js`, `manifest.json`, and `styles.css` attached as assets. The tag MUST have a `v` prefix (e.g., `v2.0.1` not `2.0.1`). Missing any of these = invisible to BRAT = update never arrives in Obsidian.
 

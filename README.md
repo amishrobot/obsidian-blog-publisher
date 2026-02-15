@@ -170,6 +170,12 @@ Install once per clone:
 npm run hooks:install
 ```
 
+Verify on any machine:
+
+```bash
+npm run hooks:check
+```
+
 The `pre-push` hook enforces BRAT release hygiene on pushes to `main`:
 
 - if plugin version changed, `v<version>` tag must exist
