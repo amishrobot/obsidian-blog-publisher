@@ -20,7 +20,9 @@ export class ChecksService {
   async checkFrontmatter(file: TFile): Promise<CheckResult> {
     const fm = await this.parseFrontmatter(file);
     if (!fm) {
-      return { passed: false, message: 'No frontmatter found' };
+      return this.slugify(file.basename)
+        ? { passed: true }
+        : { passed: false, message: 'No frontmatter found' };
     }
     const missing: string[] = [];
     const title = String(fm.title || '').trim();
@@ -28,7 +30,8 @@ export class ChecksService {
       // Some legacy posts intentionally/accidentally have empty title in frontmatter.
       // We can safely fall back to filename for publish flow.
     }
-    if (!fm.slug) missing.push('slug');
+    const slug = String(fm.slug || '').trim() || this.slugify(file.basename);
+    if (!slug) missing.push('slug');
     if (missing.length > 0) {
       return { passed: false, message: `Missing: ${missing.join(', ')}` };
     }
@@ -37,7 +40,7 @@ export class ChecksService {
 
   async checkSlug(file: TFile): Promise<CheckResult> {
     const fm = await this.parseFrontmatter(file);
-    const slug = String(fm?.slug || '');
+    const slug = String(fm?.slug || '').trim() || this.slugify(file.basename);
     if (!slug) return { passed: false, message: 'No slug' };
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return { passed: false, message: 'Invalid characters in slug' };
@@ -109,5 +112,13 @@ export class ChecksService {
     const parsed = parseYaml(fmMatch[1]);
     if (!parsed || typeof parsed !== 'object') return null;
     return parsed as Record<string, unknown>;
+  }
+
+  private slugify(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 }

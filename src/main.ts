@@ -167,14 +167,18 @@ export default class BlogPublisherPlugin extends Plugin {
 
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const currentSlug = String(fm.slug || '').trim();
+      if (!currentSlug && newAutoSlug) {
+        fm.slug = newAutoSlug;
+        needsUpdate = true;
+        return;
+      }
+
       if (!oldPath) return;
 
-      const currentSlug = String(fm.slug || '').trim();
-      if (!currentSlug || (oldAutoSlug && currentSlug === oldAutoSlug)) {
-        if (currentSlug !== newAutoSlug) {
-          fm.slug = newAutoSlug;
-          needsUpdate = true;
-        }
+      if (oldAutoSlug && currentSlug === oldAutoSlug && currentSlug !== newAutoSlug) {
+        fm.slug = newAutoSlug;
+        needsUpdate = true;
       }
     });
 
@@ -228,7 +232,7 @@ export default class BlogPublisherPlugin extends Plugin {
   async publishFile(file: TFile): Promise<void> {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
-      await this.ensurePublishDate(file);
+      await this.ensureRequiredFrontmatter(file);
       const effectiveSettings = this.validatePublishConfig(file.path, 'post');
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
@@ -247,7 +251,7 @@ export default class BlogPublisherPlugin extends Plugin {
   async unpublishFile(file: TFile): Promise<void> {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
-      await this.ensurePublishDate(file);
+      await this.ensureRequiredFrontmatter(file);
       const effectiveSettings = this.validatePublishConfig(file.path, 'post');
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
@@ -341,11 +345,19 @@ export default class BlogPublisherPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  private async ensurePublishDate(file: TFile): Promise<void> {
+  private async ensureRequiredFrontmatter(file: TFile): Promise<void> {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       const current = String(fm.date || '').trim();
       if (!current) {
         fm.date = new Date().toISOString().slice(0, 10);
+      }
+
+      const currentSlug = String(fm.slug || '').trim();
+      if (!currentSlug) {
+        const fallbackSlug = this.slugify(file.basename);
+        if (fallbackSlug) {
+          fm.slug = fallbackSlug;
+        }
       }
     });
   }

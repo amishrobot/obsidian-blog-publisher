@@ -2064,13 +2064,14 @@ var ChecksService = class {
   async checkFrontmatter(file) {
     const fm = await this.parseFrontmatter(file);
     if (!fm) {
-      return { passed: false, message: "No frontmatter found" };
+      return this.slugify(file.basename) ? { passed: true } : { passed: false, message: "No frontmatter found" };
     }
     const missing = [];
     const title = String(fm.title || "").trim();
     if (!title) {
     }
-    if (!fm.slug)
+    const slug = String(fm.slug || "").trim() || this.slugify(file.basename);
+    if (!slug)
       missing.push("slug");
     if (missing.length > 0) {
       return { passed: false, message: `Missing: ${missing.join(", ")}` };
@@ -2079,7 +2080,7 @@ var ChecksService = class {
   }
   async checkSlug(file) {
     const fm = await this.parseFrontmatter(file);
-    const slug = String((fm == null ? void 0 : fm.slug) || "");
+    const slug = String((fm == null ? void 0 : fm.slug) || "").trim() || this.slugify(file.basename);
     if (!slug)
       return { passed: false, message: "No slug" };
     if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -2151,6 +2152,9 @@ var ChecksService = class {
     if (!parsed || typeof parsed !== "object")
       return null;
     return parsed;
+  }
+  slugify(value) {
+    return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   }
 };
 
@@ -2628,14 +2632,17 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     const newAutoSlug = this.slugify(newTitle);
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const currentSlug = String(fm.slug || "").trim();
+      if (!currentSlug && newAutoSlug) {
+        fm.slug = newAutoSlug;
+        needsUpdate = true;
+        return;
+      }
       if (!oldPath)
         return;
-      const currentSlug = String(fm.slug || "").trim();
-      if (!currentSlug || oldAutoSlug && currentSlug === oldAutoSlug) {
-        if (currentSlug !== newAutoSlug) {
-          fm.slug = newAutoSlug;
-          needsUpdate = true;
-        }
+      if (oldAutoSlug && currentSlug === oldAutoSlug && currentSlug !== newAutoSlug) {
+        fm.slug = newAutoSlug;
+        needsUpdate = true;
       }
     });
     if (!needsUpdate)
@@ -2681,7 +2688,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   async publishFile(file) {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
-      await this.ensurePublishDate(file);
+      await this.ensureRequiredFrontmatter(file);
       const effectiveSettings = this.validatePublishConfig(file.path, "post");
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
@@ -2697,7 +2704,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   async unpublishFile(file) {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
-      await this.ensurePublishDate(file);
+      await this.ensureRequiredFrontmatter(file);
       const effectiveSettings = this.validatePublishConfig(file.path, "post");
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
@@ -2781,11 +2788,18 @@ theme: ${theme}
   async saveSettings() {
     await this.saveData(this.settings);
   }
-  async ensurePublishDate(file) {
+  async ensureRequiredFrontmatter(file) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       const current = String(fm.date || "").trim();
       if (!current) {
         fm.date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      }
+      const currentSlug = String(fm.slug || "").trim();
+      if (!currentSlug) {
+        const fallbackSlug = this.slugify(file.basename);
+        if (fallbackSlug) {
+          fm.slug = fallbackSlug;
+        }
       }
     });
   }
