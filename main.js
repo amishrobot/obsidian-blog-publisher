@@ -2558,6 +2558,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   // ── Publishing methods (called by PublishView) ──────────────────
   async publishFile(file) {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
       const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
       const postService = new PostService(this.app, effectiveSettings);
@@ -2573,6 +2574,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   }
   async unpublishFile(file) {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
       const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
       const postService = new PostService(this.app, effectiveSettings);
@@ -2589,6 +2591,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   }
   async publishThemeSetting(theme, filePath) {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       const effectiveSettings = this.getEffectiveSettingsForPath(filePath);
       const content = `---
 theme: ${theme}
@@ -2615,11 +2618,7 @@ theme: ${theme}
   // ── Settings ────────────────────────────────────────────────────
   async loadSettings() {
     this.configService = new ConfigService(this.app);
-    const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    const stateOverrides = await this.configService.loadFromStateFile();
-    this.settings = this.configService.merge(pluginData, stateOverrides);
-    await this.hydrateTokenFromSecretsFile();
-    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
+    await this.refreshRuntimeSettings();
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -2685,5 +2684,12 @@ theme: ${theme}
     } catch (error) {
       console.warn(`Failed to read GitHub token from ${filePath}:`, error);
     }
+  }
+  async refreshRuntimeSettings() {
+    const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stateOverrides = await this.configService.loadFromStateFile();
+    this.settings = this.configService.merge(pluginData, stateOverrides);
+    await this.hydrateTokenFromSecretsFile();
+    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
 };

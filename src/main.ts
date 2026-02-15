@@ -203,6 +203,7 @@ export default class BlogPublisherPlugin extends Plugin {
 
   async publishFile(file: TFile): Promise<void> {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
       const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
       const postService = new PostService(this.app, effectiveSettings);
@@ -221,6 +222,7 @@ export default class BlogPublisherPlugin extends Plugin {
 
   async unpublishFile(file: TFile): Promise<void> {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
       const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
       const postService = new PostService(this.app, effectiveSettings);
@@ -239,6 +241,7 @@ export default class BlogPublisherPlugin extends Plugin {
 
   async publishThemeSetting(theme: string, filePath?: string): Promise<void> {
     await this.withWriteLock(async () => {
+      await this.refreshRuntimeSettings();
       const effectiveSettings = this.getEffectiveSettingsForPath(filePath);
       const content = `---\ntheme: ${theme}\n---\n`;
       const githubService = new GitHubService(this.app, effectiveSettings);
@@ -267,11 +270,7 @@ export default class BlogPublisherPlugin extends Plugin {
 
   async loadSettings() {
     this.configService = new ConfigService(this.app);
-    const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    const stateOverrides = await this.configService.loadFromStateFile();
-    this.settings = this.configService.merge(pluginData, stateOverrides);
-    await this.hydrateTokenFromSecretsFile();
-    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
+    await this.refreshRuntimeSettings();
   }
 
   async saveSettings() {
@@ -347,5 +346,13 @@ export default class BlogPublisherPlugin extends Plugin {
     } catch (error) {
       console.warn(`Failed to read GitHub token from ${filePath}:`, error);
     }
+  }
+
+  private async refreshRuntimeSettings(): Promise<void> {
+    const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stateOverrides = await this.configService.loadFromStateFile();
+    this.settings = this.configService.merge(pluginData, stateOverrides);
+    await this.hydrateTokenFromSecretsFile();
+    this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
 }
