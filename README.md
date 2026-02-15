@@ -156,7 +156,22 @@ Run this before every release:
 
 ```bash
 npm install
+npm run hooks:install
 npm test
 npm run dev    # watch mode
 npm run build  # production build
 ```
+
+## Git Hook Guard
+
+Install once per clone:
+
+```bash
+npm run hooks:install
+```
+
+The `pre-push` hook enforces BRAT release hygiene on pushes to `main`:
+
+- if plugin version changed, `v<version>` tag must exist
+- matching GitHub release must exist
+- release must include assets: `main.js`, `manifest.json`, `styles.css`

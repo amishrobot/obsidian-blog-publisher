@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_SLUG="amishrobot/obsidian-blog-publisher"
+REQUIRED_ASSETS=("main.js" "manifest.json" "styles.css")
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "[pre-push] node is required" >&2
+  exit 1
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "[pre-push] gh CLI is required" >&2
+  exit 1
+fi
+
+if ! gh auth status >/dev/null 2>&1; then
+  echo "[pre-push] gh is not authenticated. Run: gh auth login" >&2
+  exit 1
+fi
+
+local_version="$(node -p "require('./manifest.json').version")"
+package_version="$(node -p "require('./package.json').version")"
+
+if [[ "${local_version}" != "${package_version}" ]]; then
+  echo "[pre-push] manifest.json and package.json versions differ (${local_version} vs ${package_version})" >&2
+  exit 1
+fi
+
+check_release_for_push() {
+  local local_ref="$1"
+  local local_sha="$2"
+
+  if [[ "${local_ref}" != "refs/heads/main" ]]; then
+    return 0
+  fi
+
+  local remote_version=""
+  if git rev-parse --verify --quiet origin/main >/dev/null; then
+    remote_version="$(git show origin/main:manifest.json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(JSON.parse(s).version||"")}catch{process.stdout.write("")}})')"
+  fi
+
+  if [[ -n "${remote_version}" && "${remote_version}" == "${local_version}" ]]; then
+    return 0
+  fi
+
+  local tag="v${local_version}"
+  if ! git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+    echo "[pre-push] version bump detected (${local_version}) but tag ${tag} is missing." >&2
+    exit 1
+  fi
+
+  local tag_sha
+  tag_sha="$(git rev-list -n 1 "${tag}")"
+  if ! git merge-base --is-ancestor "${tag_sha}" "${local_sha}"; then
+    echo "[pre-push] tag ${tag} is not reachable from push commit ${local_sha}." >&2
+    exit 1
+  fi
+
+  local release_json
+  if ! release_json="$(gh release view "${tag}" --repo "${REPO_SLUG}" --json assets 2>/dev/null)"; then
+    echo "[pre-push] GitHub release ${tag} not found in ${REPO_SLUG}." >&2
+    exit 1
+  fi
+
+  node -e '
+const data = JSON.parse(process.argv[1]);
+const required = process.argv.slice(2);
+const assets = new Set((data.assets || []).map((a) => a.name));
+const missing = required.filter((name) => !assets.has(name));
+if (missing.length) {
+  console.error(`[pre-push] Release is missing required assets: ${missing.join(", ")}`);
+  process.exit(1);
+}
+' "${release_json}" "${REQUIRED_ASSETS[@]}"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  check_release_for_push "${local_ref}" "${local_sha}"
+done
+
+exit 0

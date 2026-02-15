@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "test": "vitest run"
+    "test": "vitest run",
+    "hooks:install": "bash scripts/install-hooks.sh"
   },
   "keywords": [
     "obsidian",
