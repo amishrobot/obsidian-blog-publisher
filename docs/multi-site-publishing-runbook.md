@@ -113,6 +113,10 @@ Recovery: retry publish; confirm branch exists and token has repo scope.
 Cause: manual metadata drift.
 Recovery: set status via panel and rerun checks.
 
+5. GitHub `404` on publish to private repo.
+Cause: token does not have access to target repository.
+Recovery: verify `githubToken` has `repo` scope and is authorized for the target org/repo.
+
 ## Plugin Release Process
 
 1. Update code and tests.
@@ -121,6 +125,12 @@ Recovery: set status via panel and rerun checks.
 4. Update `CHANGELOG.md`.
 5. Tag/release with `main.js`, `manifest.json`, `styles.css`.
 6. Validate install/update via BRAT and live smoke test one publish.
+
+Release retention policy:
+
+- Keep latest 5 releases/tags in GitHub for BRAT clarity.
+- Delete older releases with `--cleanup-tag`.
+- Current retained baseline: `v2.0.16` through `v2.0.12`.
 
 ## Legacy Fallback Deprecation
 

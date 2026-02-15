@@ -94,7 +94,13 @@ Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
 
 - Canonical current release: `v2.0.16`
 - See full notes in `CHANGELOG.md`
-- `v2.0.10` exists but is superseded by `v2.0.11+`
+- BRAT release retention policy: keep latest 5 GitHub releases/tags only.
+- Current retained set: `v2.0.16`, `v2.0.15`, `v2.0.14`, `v2.0.13`, `v2.0.12`.
+
+## Operations Notes
+
+- Charming routes are `/posts/<slug>` (not `/YYYY/<slug>`).
+- A `GitHub 404` on publish to a private repo typically means the configured token lacks access to that repo.
 
 ## Regression Checklist
 
