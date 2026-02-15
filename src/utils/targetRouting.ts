@@ -1,6 +1,7 @@
 import { BlogPublisherSettings, BlogTargetSettings } from '../models/types';
 
 const LEGACY_POSTS_FOLDERS = ['Blog/posts', 'Personal/Blog/posts'];
+const CANONICAL_SITE_POSTS_RE = /^Blog\/([^/]+)\/posts(?:\/|$)/i;
 
 export function normalizeFolderPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
@@ -19,6 +20,27 @@ function legacyFolders(settings: BlogPublisherSettings): string[] {
   return [...new Set(merged.filter(Boolean))];
 }
 
+function canonicalFolderFromPath(path: string): string | null {
+  const normalizedPath = normalizeFolderPath(path);
+  const match = normalizedPath.match(CANONICAL_SITE_POSTS_RE);
+  if (!match) return null;
+  return `Blog/${match[1]}/posts`;
+}
+
+function inferredFolderFromName(name: string | undefined): string | null {
+  const value = String(name || '').trim();
+  if (!value) return null;
+  return `Blog/${value}/posts`;
+}
+
+function targetCandidateFolders(target: BlogTargetSettings): string[] {
+  const candidates = [
+    normalizeFolderPath(target.postsFolder || ''),
+    normalizeFolderPath(inferredFolderFromName(target.name) || ''),
+  ].filter(Boolean);
+  return [...new Set(candidates)];
+}
+
 export function resolveTargetForPath(
   path: string | undefined,
   settings: BlogPublisherSettings
@@ -27,6 +49,10 @@ export function resolveTargetForPath(
 
   const targets = settings.blogTargets || [];
   if (targets.length === 0) {
+    const canonicalFolder = canonicalFolderFromPath(path);
+    if (canonicalFolder) {
+      return { postsFolder: canonicalFolder };
+    }
     return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder))
       ? { postsFolder: settings.postsFolder }
       : null;
@@ -35,11 +61,12 @@ export function resolveTargetForPath(
   let best: BlogTargetSettings | null = null;
   let bestLength = -1;
   for (const target of targets) {
-    const folder = normalizeFolderPath(target.postsFolder || '');
-    if (!folder || !pathMatchesFolder(path, folder)) continue;
-    if (folder.length > bestLength) {
-      best = target;
-      bestLength = folder.length;
+    for (const folder of targetCandidateFolders(target)) {
+      if (!folder || !pathMatchesFolder(path, folder)) continue;
+      if (folder.length > bestLength) {
+        best = { ...target, postsFolder: folder };
+        bestLength = folder.length;
+      }
     }
   }
   if (best) return best;

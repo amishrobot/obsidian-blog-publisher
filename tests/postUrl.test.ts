@@ -4,6 +4,8 @@ import { buildPostUrl } from '../src/utils/postUrl';
 
 const base: BlogPublisherSettings = {
   githubToken: '',
+  secretsFilePath: '.system/config.json',
+  githubTokenConfigKey: 'blog_publisher_github_token',
   repository: 'amishrobot/amishrobot.com',
   branch: 'main',
   postsFolder: 'Blogs/AmishRobot/posts',

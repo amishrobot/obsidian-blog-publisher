@@ -58,7 +58,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('GitHub repository (owner/repo)')
       .addText((text) =>
         text
-          .setPlaceholder('amishrobot/amishrobot.com')
+          .setPlaceholder('your-org/your-blog-repo')
           .setValue(this.plugin.settings.repository)
           .onChange(async (value) => {
             this.plugin.settings.repository = value;
@@ -84,7 +84,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Vault folder to watch for posts')
       .addText((text) =>
         text
-          .setPlaceholder('Personal/Blog/posts')
+          .setPlaceholder('Blog/MySite/posts')
           .setValue(this.plugin.settings.postsFolder)
           .onChange(async (value) => {
             this.plugin.settings.postsFolder = value;
@@ -136,7 +136,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Optional per-folder routing. Used when `_state/blog-config.md` is not present.')
       .addTextArea((text) =>
         text
-          .setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]')
+          .setPlaceholder('[{"name":"MySite","repository":"your-org/your-blog-repo","siteUrl":"https://mysite.com"}]')
           .setValue(this.plugin.settings.blogTargetsJson || '')
           .onChange(async (value) => {
             this.plugin.settings.blogTargetsJson = value;
@@ -149,7 +149,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Vault markdown file to publish when theme settings change')
       .addText((text) =>
         text
-          .setPlaceholder('Personal/Blog/settings/theme.md')
+          .setPlaceholder('Blog/MySite/settings/theme.md')
           .setValue(this.plugin.settings.themeFilePath)
           .onChange(async (value) => {
             this.plugin.settings.themeFilePath = value;
@@ -175,7 +175,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Blog URL for success notice links')
       .addText((text) =>
         text
-          .setPlaceholder('https://amishrobot.com')
+          .setPlaceholder('https://mysite.com')
           .setValue(this.plugin.settings.siteUrl)
           .onChange(async (value) => {
             this.plugin.settings.siteUrl = value;

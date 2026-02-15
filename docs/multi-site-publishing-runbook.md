@@ -4,15 +4,13 @@ This runbook defines the routing contract and day-2 operations for publishing fr
 
 ## Scope
 
-- Site 1: AmishRobot (`https://amishrobot.com`)
-- Site 2: Charming Web (`https://thischarmingweb.com`)
+- Multi-site vault routing with canonical path convention
 - Plugin: `obsidian-blog-publisher`
 
 ## Folder Conventions
 
-- `Blogs/AmishRobot/posts/**` -> AmishRobot site target
-- `Blogs/Charming/posts/**` -> Charming site target
-- Legacy fallback: `Blog/posts/**` and `Personal/Blog/posts/**` -> default target (AmishRobot)
+- `Blog/<SiteName>/posts/**` -> publishable site target path
+- Legacy fallback: `Blog/posts/**` and `Personal/Blog/posts/**` -> configured default target
 
 Only markdown files (`*.md`) under mapped paths are treated as post files.
 
@@ -34,24 +32,24 @@ Configured in `_state/blog-config.md`:
 
 ```yaml
 blogTargets:
-  - name: AmishRobot
-    postsFolder: Blogs/AmishRobot/posts
-    repository: amishrobot/amishrobot.com
+  - name: SiteA
+    postsFolder: Blog/SiteA/posts
+    repository: your-org/site-a
     branch: main
-    siteUrl: https://amishrobot.com
+    siteUrl: https://site-a.com
     repoPostsPath: content/posts
     repoImagesPath: public/_assets/images
-    themeFilePath: Blogs/AmishRobot/settings/theme.md
+    themeFilePath: Blog/SiteA/settings/theme.md
     themeRepoPath: content/settings/theme.md
-  - name: Charming
-    postsFolder: Blogs/Charming/posts
-    repository: amishrobot/charmingweb
+  - name: SiteB
+    postsFolder: Blog/SiteB/posts
+    repository: your-org/site-b
     branch: main
-    siteUrl: https://thischarmingweb.com
+    siteUrl: https://site-b.com
     repoPostsPath: src/content/posts
     repoImagesPath: public/_assets/images
     postUrlFormat: posts-slug
-    themeFilePath: Blogs/Charming/settings/theme.md
+    themeFilePath: Blog/SiteB/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
 
@@ -67,7 +65,7 @@ Sensitive token storage (vault local, not in shared docs):
 
 Notes:
 
-- `postsFolder` is required per target.
+- `postsFolder` is optional if `name` is set. If omitted, the plugin infers `Blog/<name>/posts`.
 - `repository`, `branch`, `siteUrl`, `repoPostsPath`, `repoImagesPath`, `postUrlFormat`, and theme fields fall back to global settings when omitted.
 - `blogTargetsJson` is supported as JSON fallback when state-file YAML is unavailable.
 
@@ -93,9 +91,9 @@ npm test
 
 Current required matrix:
 
-- `Blogs/AmishRobot/posts/foo.md` -> AmishRobot
-- `Blogs/Charming/posts/foo.md` -> Charming
-- `Blog/posts/foo.md` -> legacy fallback (AmishRobot)
+- `Blog/SiteA/posts/foo.md` -> SiteA target
+- `Blog/SiteB/posts/foo.md` -> SiteB target
+- `Blog/posts/foo.md` -> legacy fallback (configured default target)
 - Unknown path -> no target
 - Non-markdown path -> ignored
 
@@ -140,7 +138,7 @@ Release retention policy:
 
 - Keep latest 5 releases/tags in GitHub for BRAT clarity.
 - Delete older releases with `--cleanup-tag`.
-- Current retained baseline: `v2.0.16` through `v2.0.12`.
+- Current retained baseline: latest 5 releases.
 
 ## Legacy Fallback Deprecation
 
@@ -153,8 +151,8 @@ Release retention policy:
 ## Adding a Third Blog/Site
 
 1. Create vault folders:
-   - `Blogs/<NewSite>/posts`
-   - `Blogs/<NewSite>/settings`
+   - `Blog/<NewSite>/posts`
+   - `Blog/<NewSite>/settings`
 2. Add new `blogTargets` entry with repo, branch, site URL, and theme paths.
 3. Add routing tests for the new folder mapping and unknown-path behavior.
 4. Run `npm test` and `npm run build`.

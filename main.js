@@ -500,19 +500,19 @@ var DEFAULT_SETTINGS = {
   githubToken: "",
   secretsFilePath: ".system/config.json",
   githubTokenConfigKey: "blog_publisher_github_token",
-  repository: "amishrobot/amishrobot.com",
+  repository: "",
   branch: "main",
-  postsFolder: "Personal/Blog/posts",
+  postsFolder: "Blog/Site/posts",
   repoPostsPath: "content/posts",
   repoImagesPath: "public/_assets/images",
   postUrlFormat: "year-slug",
   blogTargets: [],
   blogTargetsJson: "",
-  themeFilePath: "Personal/Blog/settings/theme.md",
+  themeFilePath: "Blog/Site/settings/theme.md",
   themeRepoPath: "content/settings/theme.md",
   themePublishedHash: "",
   themePublishedCommit: "",
-  siteUrl: "https://amishrobot.com",
+  siteUrl: "",
   themes: ["classic", "paper", "spruce", "midnight", "soviet"]
 };
 var STATUS_CONFIG = {
@@ -2157,12 +2157,16 @@ var ConfigService = class {
     if (!input || typeof input !== "object")
       return null;
     const row = input;
-    if (typeof row.postsFolder !== "string" || row.postsFolder.trim().length === 0) {
+    const hasPostsFolder = typeof row.postsFolder === "string" && row.postsFolder.trim().length > 0;
+    const hasName = typeof row.name === "string" && row.name.trim().length > 0;
+    if (!hasPostsFolder && !hasName) {
       return null;
     }
-    const target = { postsFolder: row.postsFolder.trim() };
-    if (typeof row.name === "string" && row.name.trim().length > 0)
-      target.name = row.name.trim();
+    const target = {};
+    if (hasPostsFolder)
+      target.postsFolder = String(row.postsFolder).trim();
+    if (hasName)
+      target.name = String(row.name).trim();
     if (typeof row.repository === "string" && row.repository.trim().length > 0)
       target.repository = row.repository.trim();
     if (typeof row.branch === "string" && row.branch.trim().length > 0)
@@ -2262,7 +2266,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Repository").setDesc("GitHub repository (owner/repo)").addText(
-      (text) => text.setPlaceholder("amishrobot/amishrobot.com").setValue(this.plugin.settings.repository).onChange(async (value) => {
+      (text) => text.setPlaceholder("your-org/your-blog-repo").setValue(this.plugin.settings.repository).onChange(async (value) => {
         this.plugin.settings.repository = value;
         await this.plugin.saveSettings();
       })
@@ -2274,7 +2278,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
-      (text) => text.setPlaceholder("Personal/Blog/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
+      (text) => text.setPlaceholder("Blog/MySite/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
         this.plugin.settings.postsFolder = value;
         await this.plugin.saveSettings();
       })
@@ -2298,13 +2302,13 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_state/blog-config.md` is not present.").addTextArea(
-      (text) => text.setPlaceholder('[{"name":"AmishRobot","postsFolder":"Blogs/AmishRobot/posts","repository":"amishrobot/amishrobot.com","siteUrl":"https://amishrobot.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
+      (text) => text.setPlaceholder('[{"name":"MySite","repository":"your-org/your-blog-repo","siteUrl":"https://mysite.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
         this.plugin.settings.blogTargetsJson = value;
         await this.plugin.saveSettings();
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
-      (text) => text.setPlaceholder("Personal/Blog/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
+      (text) => text.setPlaceholder("Blog/MySite/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
         this.plugin.settings.themeFilePath = value;
         await this.plugin.saveSettings();
       })
@@ -2316,7 +2320,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
-      (text) => text.setPlaceholder("https://amishrobot.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
+      (text) => text.setPlaceholder("https://mysite.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
         this.plugin.settings.siteUrl = value;
         await this.plugin.saveSettings();
       })
@@ -2333,6 +2337,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
 
 // src/utils/targetRouting.ts
 var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
+var CANONICAL_SITE_POSTS_RE = /^Blog\/([^/]+)\/posts(?:\/|$)/i;
 function normalizeFolderPath(path) {
   return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
 }
@@ -2348,22 +2353,47 @@ function legacyFolders(settings) {
   const merged = [configured, ...LEGACY_POSTS_FOLDERS.map(normalizeFolderPath)];
   return [...new Set(merged.filter(Boolean))];
 }
+function canonicalFolderFromPath(path) {
+  const normalizedPath = normalizeFolderPath(path);
+  const match = normalizedPath.match(CANONICAL_SITE_POSTS_RE);
+  if (!match)
+    return null;
+  return `Blog/${match[1]}/posts`;
+}
+function inferredFolderFromName(name) {
+  const value = String(name || "").trim();
+  if (!value)
+    return null;
+  return `Blog/${value}/posts`;
+}
+function targetCandidateFolders(target) {
+  const candidates = [
+    normalizeFolderPath(target.postsFolder || ""),
+    normalizeFolderPath(inferredFolderFromName(target.name) || "")
+  ].filter(Boolean);
+  return [...new Set(candidates)];
+}
 function resolveTargetForPath(path, settings) {
   if (!path)
     return null;
   const targets = settings.blogTargets || [];
   if (targets.length === 0) {
+    const canonicalFolder = canonicalFolderFromPath(path);
+    if (canonicalFolder) {
+      return { postsFolder: canonicalFolder };
+    }
     return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
   }
   let best = null;
   let bestLength = -1;
   for (const target of targets) {
-    const folder = normalizeFolderPath(target.postsFolder || "");
-    if (!folder || !pathMatchesFolder(path, folder))
-      continue;
-    if (folder.length > bestLength) {
-      best = target;
-      bestLength = folder.length;
+    for (const folder of targetCandidateFolders(target)) {
+      if (!folder || !pathMatchesFolder(path, folder))
+        continue;
+      if (folder.length > bestLength) {
+        best = { ...target, postsFolder: folder };
+        bestLength = folder.length;
+      }
     }
   }
   if (best)
@@ -2643,7 +2673,12 @@ theme: ${theme}
       if (!Array.isArray(parsed))
         return [];
       return parsed.filter((item) => {
-        return !!item && typeof item === "object" && typeof item.postsFolder === "string" && item.postsFolder.trim().length > 0;
+        if (!item || typeof item !== "object")
+          return false;
+        const target = item;
+        const hasPostsFolder = typeof target.postsFolder === "string" && target.postsFolder.trim().length > 0;
+        const hasName = typeof target.name === "string" && target.name.trim().length > 0;
+        return hasPostsFolder || hasName;
       });
     } catch (e3) {
       console.warn("Failed to parse blogTargetsJson. Expected a JSON array.");

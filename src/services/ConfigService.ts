@@ -93,13 +93,16 @@ export class ConfigService {
   private parseTarget(input: unknown): BlogTargetSettings | null {
     if (!input || typeof input !== 'object') return null;
     const row = input as Record<string, unknown>;
-    if (typeof row.postsFolder !== 'string' || row.postsFolder.trim().length === 0) {
+    const hasPostsFolder = typeof row.postsFolder === 'string' && row.postsFolder.trim().length > 0;
+    const hasName = typeof row.name === 'string' && row.name.trim().length > 0;
+    if (!hasPostsFolder && !hasName) {
       return null;
     }
 
-    const target: BlogTargetSettings = { postsFolder: row.postsFolder.trim() };
+    const target: BlogTargetSettings = {};
 
-    if (typeof row.name === 'string' && row.name.trim().length > 0) target.name = row.name.trim();
+    if (hasPostsFolder) target.postsFolder = String(row.postsFolder).trim();
+    if (hasName) target.name = String(row.name).trim();
     if (typeof row.repository === 'string' && row.repository.trim().length > 0) target.repository = row.repository.trim();
     if (typeof row.branch === 'string' && row.branch.trim().length > 0) target.branch = row.branch.trim();
     if (typeof row.repoPostsPath === 'string' && row.repoPostsPath.trim().length > 0) target.repoPostsPath = row.repoPostsPath.trim();

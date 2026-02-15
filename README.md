@@ -2,14 +2,14 @@
 
 An Obsidian plugin for publishing blog posts to a GitHub-hosted Astro site. Opens a side panel with status controls, theme selection, pre-publish checks, and one-click deploy.
 
-Built for [amishrobot.com](https://amishrobot.com).
+Built for multi-site Obsidian-to-GitHub publishing.
 
 ## Features
 
 - **Side panel UI** — status, theme, slug, tags, URL preview, change tracking
 - **Publish** — pushes post markdown + images to GitHub via the git tree API; Vercel auto-deploys
 - **Update-first published flow** — published posts can be updated directly via the bottom `Update` action
-- **Multi-site routing** — routes files by path to AmishRobot vs. Charming targets
+- **Multi-site routing** — routes files by canonical vault path: `Blog/<SiteName>/posts/**`
 - **Pre-publish checks** — validates frontmatter, slug format, links, and images before deploy
 - **Theme selection** — switch between site themes (Classic, Paper, Spruce, Midnight)
 - **Change tracking** — shows pending changes vs. last published state
@@ -61,25 +61,25 @@ Optional multi-blog routing (`_state/blog-config.md`):
 
 ```yaml
 blogTargets:
-  - name: AmishRobot
-    postsFolder: Blogs/AmishRobot/posts
-    repository: amishrobot/amishrobot.com
+  - name: SiteA
+    postsFolder: Blog/SiteA/posts
+    repository: your-org/site-a
     branch: main
-    siteUrl: https://amishrobot.com
+    siteUrl: https://site-a.com
     repoPostsPath: content/posts
     repoImagesPath: public/_assets/images
-    themeFilePath: Blogs/AmishRobot/settings/theme.md
+    themeFilePath: Blog/SiteA/settings/theme.md
     themeRepoPath: content/settings/theme.md
     themes: [classic, paper, spruce, midnight, soviet]
-  - name: Charming
-    postsFolder: Blogs/Charming/posts
-    repository: amishrobot/charmingweb
+  - name: SiteB
+    postsFolder: Blog/SiteB/posts
+    repository: your-org/site-b
     branch: main
-    siteUrl: https://thischarmingweb.com
+    siteUrl: https://site-b.com
     repoPostsPath: src/content/posts
     repoImagesPath: public/_assets/images
     postUrlFormat: posts-slug
-    themeFilePath: Blogs/Charming/settings/theme.md
+    themeFilePath: Blog/SiteB/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
 
@@ -100,8 +100,8 @@ If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior 
 
 Routing rules:
 
-1. Exact target mapping by longest `blogTargets[].postsFolder` prefix.
-2. Legacy fallback remains supported for `Blog/posts/**` and `Personal/Blog/posts/**`.
+1. Exact target mapping by longest `blogTargets[].postsFolder` prefix (or inferred `Blog/<name>/posts` from target name).
+2. Legacy fallback remains supported for `Blog/posts/**` and `Personal/Blog/posts/**` during migration.
 3. Unknown paths are not treated as publishable post paths.
 4. URL generation supports both styles:
    `year-slug` -> `/YYYY/slug`
@@ -111,14 +111,14 @@ Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.17`
+- Canonical current release: `v2.0.18`
 - See full notes in `CHANGELOG.md`
 - BRAT release retention policy: keep latest 5 GitHub releases/tags only.
-- Current retained set: `v2.0.17`, `v2.0.16`, `v2.0.15`, `v2.0.14`, `v2.0.13`.
+- Current retained set: `v2.0.18`, `v2.0.17`, `v2.0.16`, `v2.0.15`, `v2.0.14`.
 
 ## Operations Notes
 
-- Charming routes are `/posts/<slug>` (not `/YYYY/<slug>`).
+- Canonical vault structure: `Blog/<SiteName>/posts/**`
 - A `GitHub 404` on publish to a private repo typically means the configured token lacks access to that repo.
 
 ## Regression Checklist
@@ -136,10 +136,10 @@ Run this before every release:
 9. Verify image rendering for filenames with spaces/special chars.
 10. Verify `date` auto-fills only when missing and does not overwrite existing dates.
 11. Verify multi-blog routing:
-    `Blogs/AmishRobot/posts` -> `amishrobot/amishrobot.com`
-    `Blogs/Charming/posts` -> `amishrobot/charmingweb`
+    `Blog/SiteA/posts` -> target repo A
+    `Blog/SiteB/posts` -> target repo B
 12. Verify legacy fallback routing:
-    `Blog/posts` -> default target (AmishRobot).
+    `Blog/posts` -> configured default target.
 
 ## Tech Stack
 

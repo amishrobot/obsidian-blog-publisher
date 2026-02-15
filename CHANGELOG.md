@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.18 (2026-02-15)
+- Added canonical, shareable routing support for `Blog/<SiteName>/posts/**`.
+- `blogTargets` entries can now be defined by `name` only; `postsFolder` is inferred as `Blog/<name>/posts`.
+- Neutralized default settings (no hardcoded personal repository/site URL defaults).
+- Updated docs and examples to use portable, non-personal site profiles.
+
 ## v2.0.17 (2026-02-15)
 - Added JoshOS-style secret resolution for GitHub token:
   - New settings: `secretsFilePath` (default `.system/config.json`) and `githubTokenConfigKey` (default `blog_publisher_github_token`)

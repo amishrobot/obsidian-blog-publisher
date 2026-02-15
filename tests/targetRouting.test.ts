@@ -4,6 +4,8 @@ import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath } from '.
 
 const baseSettings: BlogPublisherSettings = {
   githubToken: '',
+  secretsFilePath: '.system/config.json',
+  githubTokenConfigKey: 'blog_publisher_github_token',
   repository: 'amishrobot/amishrobot.com',
   branch: 'main',
   postsFolder: 'Blogs/AmishRobot/posts',
@@ -73,5 +75,32 @@ describe('target routing', () => {
     expect(effective.postsFolder).toBe('Blogs/Charming/posts');
     expect(effective.repoPostsPath).toBe('src/content/posts');
     expect(effective.postUrlFormat).toBe('posts-slug');
+  });
+
+  it('infers canonical Blog/<name>/posts folder from target name when postsFolder omitted', () => {
+    const settings: BlogPublisherSettings = {
+      ...baseSettings,
+      blogTargets: [
+        {
+          name: 'KidSite',
+          repository: 'kid/site',
+          siteUrl: 'https://kid.example.com',
+          repoPostsPath: 'content/posts',
+          postUrlFormat: 'year-slug',
+        },
+      ],
+    };
+
+    const target = resolveTargetForPath('Blog/KidSite/posts/hello-world.md', settings);
+    expect(target?.repository).toBe('kid/site');
+    expect(target?.postsFolder).toBe('Blog/KidSite/posts');
+  });
+
+  it('treats canonical Blog/<site>/posts path as post path when no targets configured', () => {
+    const settings: BlogPublisherSettings = {
+      ...baseSettings,
+      blogTargets: [],
+    };
+    expect(isPostPath('Blog/AnySite/posts/hello-world.md', settings)).toBe(true);
   });
 });

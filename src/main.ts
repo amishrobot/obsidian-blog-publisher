@@ -301,9 +301,11 @@ export default class BlogPublisherPlugin extends Plugin {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       return parsed.filter((item): item is BlogTargetSettings => {
-        return !!item && typeof item === 'object'
-          && typeof (item as BlogTargetSettings).postsFolder === 'string'
-          && (item as BlogTargetSettings).postsFolder.trim().length > 0;
+        if (!item || typeof item !== 'object') return false;
+        const target = item as BlogTargetSettings;
+        const hasPostsFolder = typeof target.postsFolder === 'string' && target.postsFolder.trim().length > 0;
+        const hasName = typeof target.name === 'string' && target.name.trim().length > 0;
+        return hasPostsFolder || hasName;
       });
     } catch {
       console.warn('Failed to parse blogTargetsJson. Expected a JSON array.');
