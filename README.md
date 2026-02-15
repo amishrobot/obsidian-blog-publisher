@@ -38,13 +38,19 @@ This plugin is installed via [BRAT](https://github.com/TfTHacker/obsidian42-brat
 
 ## Configuration
 
-The plugin reads settings from a JoshOS state file (`_state/blog-config.md`) with fallback to Obsidian's plugin settings panel.
+The plugin follows JoshOS config conventions:
+
+- Non-secret publishing config in `_state/blog-config.md`
+- Secrets in vault-local `.system/config.json`
+- Plugin settings panel as fallback/override
 
 Required settings:
 
 | Setting | Description |
 |---------|-------------|
-| `githubToken` | GitHub personal access token with repo scope |
+| `githubToken` | Optional direct token override (password field in plugin settings) |
+| `secretsFilePath` | Vault-local JSON file for sensitive values (default `.system/config.json`) |
+| `githubTokenConfigKey` | JSON key used to resolve GitHub token (default `blog_publisher_github_token`) |
 | `repository` | GitHub repo in `owner/repo` format |
 | `postsFolder` | Vault path to blog posts |
 | `themes` | Available site themes |
@@ -76,6 +82,19 @@ blogTargets:
     themeFilePath: Blogs/Charming/settings/theme.md
     themeRepoPath: content/settings/theme.md
 ```
+
+JoshOS-style secret storage (`.system/config.json`):
+
+```json
+{
+  "blog_publisher_github_token": "github_pat_..."
+}
+```
+
+Token resolution order:
+
+1. `githubToken` from plugin settings or `_state/blog-config.md` (if set)
+2. `secretsFilePath` + `githubTokenConfigKey` lookup in vault JSON
 
 If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior using `postsFolder`.
 

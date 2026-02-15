@@ -2,6 +2,8 @@
 
 export interface BlogPublisherSettings {
   githubToken: string;
+  secretsFilePath: string;
+  githubTokenConfigKey: string;
   repository: string;
   branch: string;
   postsFolder: string;
@@ -34,6 +36,8 @@ export interface BlogTargetSettings {
 
 export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   githubToken: '',
+  secretsFilePath: '.system/config.json',
+  githubTokenConfigKey: 'blog_publisher_github_token',
   repository: 'amishrobot/amishrobot.com',
   branch: 'main',
   postsFolder: 'Personal/Blog/posts',

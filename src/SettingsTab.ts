@@ -15,7 +15,7 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('GitHub token')
-      .setDesc('Fine-grained personal access token with contents:write scope')
+      .setDesc('Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).')
       .addText((text) =>
         text
           .setPlaceholder('github_pat_...')
@@ -23,6 +23,32 @@ export class SettingsTab extends PluginSettingTab {
           .then((t) => (t.inputEl.type = 'password'))
           .onChange(async (value) => {
             this.plugin.settings.githubToken = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Secrets file path')
+      .setDesc('Vault-local JSON file for secrets (JoshOS pattern: `.system/config.json`).')
+      .addText((text) =>
+        text
+          .setPlaceholder('.system/config.json')
+          .setValue(this.plugin.settings.secretsFilePath || '')
+          .onChange(async (value) => {
+            this.plugin.settings.secretsFilePath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('GitHub token config key')
+      .setDesc('JSON key in the secrets file used to resolve the GitHub token.')
+      .addText((text) =>
+        text
+          .setPlaceholder('blog_publisher_github_token')
+          .setValue(this.plugin.settings.githubTokenConfigKey || '')
+          .onChange(async (value) => {
+            this.plugin.settings.githubTokenConfigKey = value;
             await this.plugin.saveSettings();
           })
       );

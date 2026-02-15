@@ -270,6 +270,7 @@ export default class BlogPublisherPlugin extends Plugin {
     const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     const stateOverrides = await this.configService.loadFromStateFile();
     this.settings = this.configService.merge(pluginData, stateOverrides);
+    await this.hydrateTokenFromSecretsFile();
     this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
 
@@ -323,6 +324,28 @@ export default class BlogPublisherPlugin extends Plugin {
       return await operation();
     } finally {
       release();
+    }
+  }
+
+  private async hydrateTokenFromSecretsFile(): Promise<void> {
+    if (this.settings.githubToken && this.settings.githubToken.trim().length > 0) return;
+
+    const filePath = (this.settings.secretsFilePath || '').trim();
+    const tokenKey = (this.settings.githubTokenConfigKey || '').trim();
+    if (!filePath || !tokenKey) return;
+
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof TFile)) return;
+
+    try {
+      const content = await this.app.vault.read(file);
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      const resolved = parsed[tokenKey];
+      if (typeof resolved === 'string' && resolved.trim().length > 0) {
+        this.settings.githubToken = resolved.trim();
+      }
+    } catch (error) {
+      console.warn(`Failed to read GitHub token from ${filePath}:`, error);
     }
   }
 }

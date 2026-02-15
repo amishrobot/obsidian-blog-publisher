@@ -498,6 +498,8 @@ function D2(n2, t3) {
 // src/models/types.ts
 var DEFAULT_SETTINGS = {
   githubToken: "",
+  secretsFilePath: ".system/config.json",
+  githubTokenConfigKey: "blog_publisher_github_token",
   repository: "amishrobot/amishrobot.com",
   branch: "main",
   postsFolder: "Personal/Blog/posts",
@@ -2117,6 +2119,8 @@ var ConfigService = class {
     }
     const data = parsed;
     this.setStringValue(settings, "githubToken", data.githubToken);
+    this.setStringValue(settings, "secretsFilePath", data.secretsFilePath);
+    this.setStringValue(settings, "githubTokenConfigKey", data.githubTokenConfigKey);
     this.setStringValue(settings, "repository", data.repository);
     this.setStringValue(settings, "branch", data.branch);
     this.setStringValue(settings, "postsFolder", data.postsFolder);
@@ -2239,9 +2243,21 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian6.Setting(containerEl).setName("GitHub token").setDesc("Fine-grained personal access token with contents:write scope").addText(
+    new import_obsidian6.Setting(containerEl).setName("GitHub token").setDesc("Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).").addText(
       (text) => text.setPlaceholder("github_pat_...").setValue(this.plugin.settings.githubToken).then((t3) => t3.inputEl.type = "password").onChange(async (value) => {
         this.plugin.settings.githubToken = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(containerEl).setName("Secrets file path").setDesc("Vault-local JSON file for secrets (JoshOS pattern: `.system/config.json`).").addText(
+      (text) => text.setPlaceholder(".system/config.json").setValue(this.plugin.settings.secretsFilePath || "").onChange(async (value) => {
+        this.plugin.settings.secretsFilePath = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(containerEl).setName("GitHub token config key").setDesc("JSON key in the secrets file used to resolve the GitHub token.").addText(
+      (text) => text.setPlaceholder("blog_publisher_github_token").setValue(this.plugin.settings.githubTokenConfigKey || "").onChange(async (value) => {
+        this.plugin.settings.githubTokenConfigKey = value;
         await this.plugin.saveSettings();
       })
     );
@@ -2602,6 +2618,7 @@ theme: ${theme}
     const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     const stateOverrides = await this.configService.loadFromStateFile();
     this.settings = this.configService.merge(pluginData, stateOverrides);
+    await this.hydrateTokenFromSecretsFile();
     this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
   }
   async saveSettings() {
@@ -2646,6 +2663,27 @@ theme: ${theme}
       return await operation();
     } finally {
       release();
+    }
+  }
+  async hydrateTokenFromSecretsFile() {
+    if (this.settings.githubToken && this.settings.githubToken.trim().length > 0)
+      return;
+    const filePath = (this.settings.secretsFilePath || "").trim();
+    const tokenKey = (this.settings.githubTokenConfigKey || "").trim();
+    if (!filePath || !tokenKey)
+      return;
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof import_obsidian7.TFile))
+      return;
+    try {
+      const content = await this.app.vault.read(file);
+      const parsed = JSON.parse(content);
+      const resolved = parsed[tokenKey];
+      if (typeof resolved === "string" && resolved.trim().length > 0) {
+        this.settings.githubToken = resolved.trim();
+      }
+    } catch (error) {
+      console.warn(`Failed to read GitHub token from ${filePath}:`, error);
     }
   }
 };

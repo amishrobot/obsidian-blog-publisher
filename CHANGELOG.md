@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- Added JoshOS-style secret resolution for GitHub token:
+  - New settings: `secretsFilePath` (default `.system/config.json`) and `githubTokenConfigKey` (default `blog_publisher_github_token`)
+  - If `githubToken` is empty, plugin loads token from the configured vault JSON key.
+- Updated settings UI and docs to formalize config split:
+  - Non-secrets in `_state/blog-config.md`
+  - Secrets in `.system/config.json`
+
 ## v2.0.16 (2026-02-14)
 - Fixed primary action label logic:
   - New notes (never published) now show `Publish`

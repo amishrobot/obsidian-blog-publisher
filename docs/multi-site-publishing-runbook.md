@@ -55,6 +55,16 @@ blogTargets:
     themeRepoPath: content/settings/theme.md
 ```
 
+Sensitive token storage (vault local, not in shared docs):
+
+`/.system/config.json`
+
+```json
+{
+  "blog_publisher_github_token": "github_pat_..."
+}
+```
+
 Notes:
 
 - `postsFolder` is required per target.

@@ -35,6 +35,8 @@ export class ConfigService {
 
     const data = parsed as Record<string, unknown>;
     this.setStringValue(settings, 'githubToken', data.githubToken);
+    this.setStringValue(settings, 'secretsFilePath', data.secretsFilePath);
+    this.setStringValue(settings, 'githubTokenConfigKey', data.githubTokenConfigKey);
     this.setStringValue(settings, 'repository', data.repository);
     this.setStringValue(settings, 'branch', data.branch);
     this.setStringValue(settings, 'postsFolder', data.postsFolder);
