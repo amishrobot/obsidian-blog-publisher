@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.0.20 (2026-02-15)
+- Added `Publish Blog Config` workflow for BRAT users and config-driven deploys:
+  - New panel action: `Publish config`
+  - New command: `Publish Blog Config`
+  - Publishes `_state/blog-config.md` to repo config path via GitHub API.
+- Added config-file mode in the panel:
+  - Opening `_state/blog-config.md` now shows dedicated config publishing controls.
+- Added `blogConfigRepoPath` support in settings/target parsing (with fallback derived from `themeRepoPath`).
+- Added validation for `blogTargets[].theme` against `blogTargets[].themes` before config publish.
+- Updated default theme list to include `vaporwave` and `year2000`.
+
 ## v2.0.19 (2026-02-15)
 - Added publish-time config validation with actionable messages for common setup errors:
   - missing token
