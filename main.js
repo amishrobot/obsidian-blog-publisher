@@ -1455,12 +1455,16 @@ var PublishView = class extends import_obsidian.ItemView {
   async refresh(explicitFile) {
     const container = this.containerEl.children[1];
     try {
-      const file = this.resolveCurrentPostFile(explicitFile);
+      const file = this.resolveCurrentPanelFile(explicitFile);
       if (!file) {
         G(
-          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post to see publishing controls."),
+          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post or _state/blog-config.md to see publishing controls."),
           container
         );
+        return;
+      }
+      if (this.isConfigFile(file)) {
+        this.renderConfigPanel(container, file);
         return;
       }
       const post = await this.buildPostState(file);
@@ -1502,17 +1506,54 @@ var PublishView = class extends import_obsidian.ItemView {
   isPostFile(file) {
     return this.plugin.isPostPath(file.path);
   }
-  resolveCurrentPostFile(explicitFile) {
+  isConfigFile(file) {
+    return this.plugin.isConfigPath(file.path);
+  }
+  resolveCurrentPanelFile(explicitFile) {
     if (explicitFile === null)
       return null;
     if (explicitFile instanceof import_obsidian.TFile) {
-      return this.isPostFile(explicitFile) ? explicitFile : null;
+      return this.isPostFile(explicitFile) || this.isConfigFile(explicitFile) ? explicitFile : null;
     }
     const active = this.app.workspace.getActiveFile();
-    if (active instanceof import_obsidian.TFile && this.isPostFile(active)) {
+    if (active instanceof import_obsidian.TFile && (this.isPostFile(active) || this.isConfigFile(active))) {
       return active;
     }
     return null;
+  }
+  renderConfigPanel(container, file) {
+    const onPublish = async () => {
+      const button = container.querySelector("button[data-config-publish]");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Publishing...";
+      }
+      try {
+        await this.plugin.publishBlogConfig(file.path);
+        await this.refresh(file);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        G(
+          _("div", { style: "padding:20px;color:#e06c75;font-size:12px;white-space:pre-wrap;" }, `Config publish failed: ${message}`),
+          container
+        );
+      }
+    };
+    G(
+      _("div", { style: "padding:16px;color:#c8d1dc;font-size:13px;display:flex;flex-direction:column;gap:12px;" }, [
+        _("div", { style: "font-size:14px;font-weight:600;" }, "Blog Config"),
+        _("div", { style: "color:#8a94a4;line-height:1.4;" }, "Publishing here syncs _state/blog-config.md to repo config path(s) and triggers deploy."),
+        _("div", { style: "color:#667085;font-family:monospace;font-size:12px;" }, file.path),
+        _("button", {
+          "data-config-publish": "true",
+          onClick: () => {
+            void onPublish();
+          },
+          style: "padding:6px 10px;border-radius:6px;border:1px solid #3b4554;background:#1d2430;color:#d3dceb;cursor:pointer;width:max-content;"
+        }, "Publish config")
+      ]),
+      container
+    );
   }
   async buildPostState(file) {
     const content = await this.app.vault.read(file);
@@ -2501,7 +2542,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
       name: "Publish Blog Config",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
-        if (!file || !this.isPostFile(file))
+        if (!file || !this.isPostFile(file) && !this.isConfigFile(file))
           return false;
         if (!checking)
           this.publishBlogConfig(file.path);
@@ -2512,6 +2553,10 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
       this.app.workspace.on("file-open", async (file) => {
         if (file instanceof import_obsidian7.TFile && this.isPostFile(file)) {
           await this.syncTitleAndSlugFromName(file);
+          this.scheduleRefresh(file);
+          return;
+        }
+        if (file instanceof import_obsidian7.TFile && this.isConfigFile(file)) {
           this.scheduleRefresh(file);
           return;
         }
@@ -2531,7 +2576,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     let modifyTimeout = null;
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file))
+        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file) && !this.isConfigFile(file))
           return;
         if (modifyTimeout)
           clearTimeout(modifyTimeout);
@@ -2558,8 +2603,14 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   isPostFile(file) {
     return isPostPath(file.path, this.settings);
   }
+  isConfigFile(file) {
+    return this.isConfigPath(file.path);
+  }
   isPostPath(path) {
     return isPostPath(path, this.settings);
+  }
+  isConfigPath(path) {
+    return String(path || "").replace(/\\/g, "/").replace(/^\/+/, "") === STATE_CONFIG_PATH;
   }
   resolveTargetForPath(path) {
     return resolveTargetForPath(path, this.settings);
@@ -2698,26 +2749,34 @@ theme: ${theme}
     return this.withWriteLock(async () => {
       var _a;
       await this.refreshRuntimeSettings();
-      const resolvedPath = filePath || ((_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path);
-      const effectiveSettings = this.validatePublishConfig(resolvedPath, "config");
-      const repoPath = this.resolveBlogConfigRepoPath(effectiveSettings);
+      const resolvedPath = filePath || ((_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path) || "";
       const stateFile = this.app.vault.getAbstractFileByPath(STATE_CONFIG_PATH);
       if (!(stateFile instanceof import_obsidian7.TFile)) {
         throw new Error(`Missing state config: ${STATE_CONFIG_PATH}`);
       }
       const content = await this.app.vault.read(stateFile);
       this.validateBlogConfigContent(content);
-      const githubService = new GitHubService(this.app, effectiveSettings);
-      const remoteMatches = await githubService.fileContentEquals(repoPath, content);
-      if (remoteMatches) {
-        return { skipped: true, repoPath };
+      const targets = this.resolveConfigPublishTargets(resolvedPath);
+      let firstResult = { skipped: true, repoPath: "" };
+      for (const targetSettings of targets) {
+        const repoPath = this.resolveBlogConfigRepoPath(targetSettings);
+        const githubService = new GitHubService(this.app, targetSettings);
+        const remoteMatches = await githubService.fileContentEquals(repoPath, content);
+        if (remoteMatches) {
+          if (!firstResult.repoPath)
+            firstResult = { skipped: true, repoPath };
+          continue;
+        }
+        const commitSha = await githubService.publishTextFile(
+          repoPath,
+          content,
+          "Publish: blog config update"
+        );
+        if (!firstResult.repoPath) {
+          firstResult = { skipped: false, repoPath, commitSha };
+        }
       }
-      const commitSha = await githubService.publishTextFile(
-        repoPath,
-        content,
-        "Publish: blog config update"
-      );
-      return { skipped: false, repoPath, commitSha };
+      return firstResult;
     });
   }
   // ── Settings ────────────────────────────────────────────────────
@@ -2810,7 +2869,7 @@ theme: ${theme}
     }
     const hasTargets = (this.settings.blogTargets || []).length > 0;
     const target = activePath ? this.resolveTargetForPath(activePath) : null;
-    if (hasTargets && !target && activePath) {
+    if (mode !== "config" && hasTargets && !target && activePath) {
       errors.push(
         `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Blog/<SiteName>/posts\`).`
       );
@@ -2898,5 +2957,50 @@ theme: ${theme}
         throw new Error(`Invalid blog-config: target "${name}" has theme "${selectedTheme}" not present in its themes list.`);
       }
     }
+  }
+  validateConfigTargetSettings(settings) {
+    const token = String(settings.githubToken || "").trim();
+    if (!token) {
+      throw new Error("GitHub token not configured for config publish.");
+    }
+    const repository = String(settings.repository || "").trim();
+    if (!repository || !/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+      throw new Error("Repository is missing/invalid for config publish.");
+    }
+    if (!String(settings.branch || "").trim()) {
+      throw new Error("Branch is missing for config publish.");
+    }
+  }
+  resolveConfigPublishTargets(path) {
+    var _a, _b, _c, _d, _e;
+    const activePath = String(path || "").trim();
+    if (activePath && !this.isConfigPath(activePath)) {
+      const effective = this.validatePublishConfig(activePath, "config");
+      this.validateConfigTargetSettings(effective);
+      return [effective];
+    }
+    const targets = this.settings.blogTargets || [];
+    if (targets.length === 0) {
+      const effective = this.validatePublishConfig(STATE_CONFIG_PATH, "config");
+      this.validateConfigTargetSettings(effective);
+      return [effective];
+    }
+    const settingsByKey = /* @__PURE__ */ new Map();
+    for (const target of targets) {
+      const effective = {
+        ...this.settings,
+        repository: (_a = target.repository) != null ? _a : this.settings.repository,
+        branch: (_b = target.branch) != null ? _b : this.settings.branch,
+        themeRepoPath: (_c = target.themeRepoPath) != null ? _c : this.settings.themeRepoPath,
+        blogConfigRepoPath: (_d = target.blogConfigRepoPath) != null ? _d : this.settings.blogConfigRepoPath,
+        siteUrl: (_e = target.siteUrl) != null ? _e : this.settings.siteUrl,
+        themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes
+      };
+      this.validateConfigTargetSettings(effective);
+      const key = `${effective.repository}::${effective.branch}::${this.resolveBlogConfigRepoPath(effective)}`;
+      if (!settingsByKey.has(key))
+        settingsByKey.set(key, effective);
+    }
+    return [...settingsByKey.values()];
   }
 };

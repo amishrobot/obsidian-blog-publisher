@@ -40,13 +40,18 @@ export class PublishView extends ItemView {
   async refresh(explicitFile?: TFile | null) {
     const container = this.containerEl.children[1] as HTMLElement;
     try {
-      const file = this.resolveCurrentPostFile(explicitFile);
+      const file = this.resolveCurrentPanelFile(explicitFile);
 
       if (!file) {
         render(
-          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post to see publishing controls.'),
+          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post or _state/blog-config.md to see publishing controls.'),
           container
         );
+        return;
+      }
+
+      if (this.isConfigFile(file)) {
+        this.renderConfigPanel(container, file);
         return;
       }
 
@@ -96,20 +101,58 @@ export class PublishView extends ItemView {
     return this.plugin.isPostPath(file.path);
   }
 
-  private resolveCurrentPostFile(explicitFile?: TFile | null): TFile | null {
+  private isConfigFile(file: { path: string }): boolean {
+    return this.plugin.isConfigPath(file.path);
+  }
+
+  private resolveCurrentPanelFile(explicitFile?: TFile | null): TFile | null {
     if (explicitFile === null) return null;
 
     // If the caller provides the current file, treat it as authoritative.
     if (explicitFile instanceof TFile) {
-      return this.isPostFile(explicitFile) ? explicitFile : null;
+      return this.isPostFile(explicitFile) || this.isConfigFile(explicitFile) ? explicitFile : null;
     }
 
     const active = this.app.workspace.getActiveFile();
-    if (active instanceof TFile && this.isPostFile(active)) {
+    if (active instanceof TFile && (this.isPostFile(active) || this.isConfigFile(active))) {
       return active;
     }
 
     return null;
+  }
+
+  private renderConfigPanel(container: HTMLElement, file: TFile): void {
+    const onPublish = async () => {
+      const button = container.querySelector('button[data-config-publish]') as HTMLButtonElement | null;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Publishing...';
+      }
+      try {
+        await this.plugin.publishBlogConfig(file.path);
+        await this.refresh(file);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        render(
+          h('div', { style: 'padding:20px;color:#e06c75;font-size:12px;white-space:pre-wrap;' }, `Config publish failed: ${message}`),
+          container
+        );
+      }
+    };
+
+    render(
+      h('div', { style: 'padding:16px;color:#c8d1dc;font-size:13px;display:flex;flex-direction:column;gap:12px;' }, [
+        h('div', { style: 'font-size:14px;font-weight:600;' }, 'Blog Config'),
+        h('div', { style: 'color:#8a94a4;line-height:1.4;' }, 'Publishing here syncs _state/blog-config.md to repo config path(s) and triggers deploy.'),
+        h('div', { style: 'color:#667085;font-family:monospace;font-size:12px;' }, file.path),
+        h('button', {
+          'data-config-publish': 'true',
+          onClick: () => { void onPublish(); },
+          style: 'padding:6px 10px;border-radius:6px;border:1px solid #3b4554;background:#1d2430;color:#d3dceb;cursor:pointer;width:max-content;',
+        }, 'Publish config'),
+      ]),
+      container
+    );
   }
 
   private async buildPostState(file: TFile): Promise<PostState> {

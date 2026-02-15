@@ -64,7 +64,7 @@ export default class BlogPublisherPlugin extends Plugin {
       name: 'Publish Blog Config',
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
-        if (!file || !this.isPostFile(file)) return false;
+        if (!file || (!this.isPostFile(file) && !this.isConfigFile(file))) return false;
         if (!checking) this.publishBlogConfig(file.path);
         return true;
       },
@@ -75,6 +75,10 @@ export default class BlogPublisherPlugin extends Plugin {
       this.app.workspace.on('file-open', async (file) => {
         if (file instanceof TFile && this.isPostFile(file)) {
           await this.syncTitleAndSlugFromName(file);
+          this.scheduleRefresh(file);
+          return;
+        }
+        if (file instanceof TFile && this.isConfigFile(file)) {
           this.scheduleRefresh(file);
           return;
         }
@@ -98,7 +102,7 @@ export default class BlogPublisherPlugin extends Plugin {
     let modifyTimeout: ReturnType<typeof setTimeout> | null = null;
     this.registerEvent(
       this.app.vault.on('modify', (file) => {
-        if (!(file instanceof TFile) || !this.isPostFile(file)) return;
+        if (!(file instanceof TFile) || (!this.isPostFile(file) && !this.isConfigFile(file))) return;
         if (modifyTimeout) clearTimeout(modifyTimeout);
         modifyTimeout = setTimeout(() => this.scheduleRefresh(file), 500);
       })
@@ -128,8 +132,16 @@ export default class BlogPublisherPlugin extends Plugin {
     return isPostPath(file.path, this.settings);
   }
 
+  private isConfigFile(file: TFile): boolean {
+    return this.isConfigPath(file.path);
+  }
+
   isPostPath(path: string): boolean {
     return isPostPath(path, this.settings);
+  }
+
+  isConfigPath(path: string): boolean {
+    return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '') === STATE_CONFIG_PATH;
   }
 
   private resolveTargetForPath(path?: string): BlogTargetSettings | null {
@@ -289,9 +301,7 @@ export default class BlogPublisherPlugin extends Plugin {
   async publishBlogConfig(filePath?: string): Promise<PublishConfigResult> {
     return this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
-      const resolvedPath = filePath || this.app.workspace.getActiveFile()?.path;
-      const effectiveSettings = this.validatePublishConfig(resolvedPath, 'config');
-      const repoPath = this.resolveBlogConfigRepoPath(effectiveSettings);
+      const resolvedPath = filePath || this.app.workspace.getActiveFile()?.path || '';
 
       const stateFile = this.app.vault.getAbstractFileByPath(STATE_CONFIG_PATH);
       if (!(stateFile instanceof TFile)) {
@@ -300,20 +310,30 @@ export default class BlogPublisherPlugin extends Plugin {
 
       const content = await this.app.vault.read(stateFile);
       this.validateBlogConfigContent(content);
+      const targets = this.resolveConfigPublishTargets(resolvedPath);
+      let firstResult: PublishConfigResult = { skipped: true, repoPath: '' };
 
-      const githubService = new GitHubService(this.app, effectiveSettings);
-      const remoteMatches = await githubService.fileContentEquals(repoPath, content);
-      if (remoteMatches) {
-        return { skipped: true, repoPath };
+      for (const targetSettings of targets) {
+        const repoPath = this.resolveBlogConfigRepoPath(targetSettings);
+        const githubService = new GitHubService(this.app, targetSettings);
+        const remoteMatches = await githubService.fileContentEquals(repoPath, content);
+        if (remoteMatches) {
+          if (!firstResult.repoPath) firstResult = { skipped: true, repoPath };
+          continue;
+        }
+
+        const commitSha = await githubService.publishTextFile(
+          repoPath,
+          content,
+          'Publish: blog config update'
+        );
+
+        if (!firstResult.repoPath) {
+          firstResult = { skipped: false, repoPath, commitSha };
+        }
       }
 
-      const commitSha = await githubService.publishTextFile(
-        repoPath,
-        content,
-        'Publish: blog config update'
-      );
-
-      return { skipped: false, repoPath, commitSha };
+      return firstResult;
     });
   }
 
@@ -419,7 +439,7 @@ export default class BlogPublisherPlugin extends Plugin {
 
     const hasTargets = (this.settings.blogTargets || []).length > 0;
     const target = activePath ? this.resolveTargetForPath(activePath) : null;
-    if (hasTargets && !target && activePath) {
+    if (mode !== 'config' && hasTargets && !target && activePath) {
       errors.push(
         `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Blog/<SiteName>/posts\`).`
       );
@@ -520,5 +540,55 @@ export default class BlogPublisherPlugin extends Plugin {
         throw new Error(`Invalid blog-config: target "${name}" has theme "${selectedTheme}" not present in its themes list.`);
       }
     }
+  }
+
+  private validateConfigTargetSettings(settings: BlogPublisherSettings): void {
+    const token = String(settings.githubToken || '').trim();
+    if (!token) {
+      throw new Error('GitHub token not configured for config publish.');
+    }
+
+    const repository = String(settings.repository || '').trim();
+    if (!repository || !/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+      throw new Error('Repository is missing/invalid for config publish.');
+    }
+
+    if (!String(settings.branch || '').trim()) {
+      throw new Error('Branch is missing for config publish.');
+    }
+  }
+
+  private resolveConfigPublishTargets(path: string): BlogPublisherSettings[] {
+    const activePath = String(path || '').trim();
+    if (activePath && !this.isConfigPath(activePath)) {
+      const effective = this.validatePublishConfig(activePath, 'config');
+      this.validateConfigTargetSettings(effective);
+      return [effective];
+    }
+
+    const targets = this.settings.blogTargets || [];
+    if (targets.length === 0) {
+      const effective = this.validatePublishConfig(STATE_CONFIG_PATH, 'config');
+      this.validateConfigTargetSettings(effective);
+      return [effective];
+    }
+
+    const settingsByKey = new Map<string, BlogPublisherSettings>();
+    for (const target of targets) {
+      const effective: BlogPublisherSettings = {
+        ...this.settings,
+        repository: target.repository ?? this.settings.repository,
+        branch: target.branch ?? this.settings.branch,
+        themeRepoPath: target.themeRepoPath ?? this.settings.themeRepoPath,
+        blogConfigRepoPath: target.blogConfigRepoPath ?? this.settings.blogConfigRepoPath,
+        siteUrl: target.siteUrl ?? this.settings.siteUrl,
+        themes: target.themes && target.themes.length > 0 ? target.themes : this.settings.themes,
+      };
+      this.validateConfigTargetSettings(effective);
+      const key = `${effective.repository}::${effective.branch}::${this.resolveBlogConfigRepoPath(effective)}`;
+      if (!settingsByKey.has(key)) settingsByKey.set(key, effective);
+    }
+
+    return [...settingsByKey.values()];
   }
 }
