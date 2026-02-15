@@ -2628,11 +2628,6 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     const newAutoSlug = this.slugify(newTitle);
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
-      const currentTitle = String(fm.title || "");
-      if (!currentTitle.trim()) {
-        fm.title = newTitle;
-        needsUpdate = true;
-      }
       if (!oldPath)
         return;
       const currentSlug = String(fm.slug || "").trim();

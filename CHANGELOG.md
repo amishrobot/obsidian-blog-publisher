@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.22 (2026-02-15)
+- Hard stop on frontmatter title mutation: plugin no longer auto-writes `title` from note filename in any flow.
+- Keeps rename-time slug sync behavior only when slug is missing or still auto-derived from the prior filename.
+
 ## v2.0.21 (2026-02-15)
 - Fixed title safety behavior so opening a post no longer overwrites frontmatter `title` with the filename/slug.
 - Retained rename-time slug sync behavior, but title is now only auto-filled when missing/blank.

@@ -167,12 +167,6 @@ export default class BlogPublisherPlugin extends Plugin {
 
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
-      const currentTitle = String(fm.title || '');
-      if (!currentTitle.trim()) {
-        fm.title = newTitle;
-        needsUpdate = true;
-      }
-
       if (!oldPath) return;
 
       const currentSlug = String(fm.slug || '').trim();
