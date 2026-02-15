@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0.23 (2026-02-15)
+- Fixed new-note publish regression by auto-seeding required frontmatter on publish preflight:
+  - set `date` only when missing
+  - set `slug` from filename only when missing
+- Preserved title safety: plugin still never auto-writes frontmatter `title`.
+- Hardened pre-push hook: block pushes to `main` when plugin files changed but version was not bumped.
+
 ## v2.0.22 (2026-02-15)
 - Hard stop on frontmatter title mutation: plugin no longer auto-writes `title` from note filename in any flow.
 - Keeps rename-time slug sync behavior only when slug is missing or still auto-derived from the prior filename.

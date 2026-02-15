@@ -40,6 +40,28 @@ check_release_for_push() {
     remote_version="$(git show origin/main:manifest.json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{try{process.stdout.write(JSON.parse(s).version||"")}catch{process.stdout.write("")}})')"
   fi
 
+  local changed_files=""
+  if git rev-parse --verify --quiet origin/main >/dev/null; then
+    changed_files="$(git diff --name-only origin/main...${local_sha})"
+  else
+    changed_files="$(git diff-tree --no-commit-id --name-only -r "${local_sha}")"
+  fi
+
+  local plugin_changed=0
+  while IFS= read -r changed; do
+    [[ -z "${changed}" ]] && continue
+    if [[ "${changed}" == src/* || "${changed}" == "main.js" || "${changed}" == "styles.css" || "${changed}" == "manifest.json" || "${changed}" == "package.json" || "${changed}" == "esbuild.config.mjs" ]]; then
+      plugin_changed=1
+      break
+    fi
+  done <<< "${changed_files}"
+
+  if [[ "${plugin_changed}" -eq 1 && -n "${remote_version}" && "${remote_version}" == "${local_version}" ]]; then
+    echo "[pre-push] plugin files changed on main but version is still ${local_version}." >&2
+    echo "[pre-push] bump manifest/package version and publish a BRAT release before pushing." >&2
+    exit 1
+  fi
+
   if [[ -n "${remote_version}" && "${remote_version}" == "${local_version}" ]]; then
     return 0
   fi
