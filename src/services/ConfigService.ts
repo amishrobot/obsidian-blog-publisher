@@ -46,6 +46,7 @@ export class ConfigService {
     this.setStringValue(settings, 'blogTargetsJson', data.blogTargetsJson);
     this.setStringValue(settings, 'themeFilePath', data.themeFilePath);
     this.setStringValue(settings, 'themeRepoPath', data.themeRepoPath);
+    this.setStringValue(settings, 'blogConfigRepoPath', data.blogConfigRepoPath);
     this.setStringValue(settings, 'siteUrl', data.siteUrl);
     this.setListValue(settings, 'themes', data.themes);
     this.setTargetListValue(settings, data.blogTargets);
@@ -110,6 +111,8 @@ export class ConfigService {
     if (typeof row.postUrlFormat === 'string' && row.postUrlFormat.trim().length > 0) target.postUrlFormat = row.postUrlFormat.trim();
     if (typeof row.themeFilePath === 'string' && row.themeFilePath.trim().length > 0) target.themeFilePath = row.themeFilePath.trim();
     if (typeof row.themeRepoPath === 'string' && row.themeRepoPath.trim().length > 0) target.themeRepoPath = row.themeRepoPath.trim();
+    if (typeof row.blogConfigRepoPath === 'string' && row.blogConfigRepoPath.trim().length > 0) target.blogConfigRepoPath = row.blogConfigRepoPath.trim();
+    if (typeof row.theme === 'string' && row.theme.trim().length > 0) target.theme = row.theme.trim();
     if (typeof row.siteUrl === 'string' && row.siteUrl.trim().length > 0) target.siteUrl = row.siteUrl.trim();
     if (Array.isArray(row.themes)) {
       target.themes = row.themes

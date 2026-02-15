@@ -25,6 +25,7 @@ export interface PublishPanelProps {
   onSlugChange: (slug: string) => void;
   onTagsChange: (tags: string[]) => void;
   onPublish: () => Promise<void>;
+  onPublishConfig: () => Promise<void>;
   onRunChecks: () => Promise<Record<string, CheckResult>>;
   onOpenDeployHistory: () => void;
 }
@@ -58,9 +59,10 @@ function computeChanges(saved: PostState, current: PostState, savedTheme: string
 export function PublishPanel({
   post, saved, settings,
   onStatusChange, onThemeChange, onSlugChange, onTagsChange,
-  onPublish, onRunChecks, onOpenDeployHistory,
+  onPublish, onPublishConfig, onRunChecks, onOpenDeployHistory,
 }: PublishPanelProps) {
   const [publishing, setPublishing] = useState(false);
+  const [publishingConfig, setPublishingConfig] = useState(false);
   const [checks, setChecks] = useState<Record<string, boolean | 'running'>>({});
   const [justPassed, setJustPassed] = useState<Record<string, boolean>>({});
   const [checksRunning, setChecksRunning] = useState(false);
@@ -71,7 +73,7 @@ export function PublishPanel({
   const t = THEME_PALETTES[selectedTheme] || THEME_PALETTES.classic;
   const themes = useMemo(() => {
     const ids = settings.themes.filter((id) => id.trim().length > 0);
-    return ids.length > 0 ? ids : ['classic', 'paper', 'spruce', 'midnight', 'soviet'];
+    return ids.length > 0 ? ids : ['classic', 'paper', 'spruce', 'midnight', 'vaporwave', 'year2000', 'soviet'];
   }, [settings.themes]);
   const changes = computeChanges(saved, post, settings.themes[0] || 'classic', selectedTheme);
   const hasChanges = changes.length > 0;
@@ -165,6 +167,18 @@ export function PublishPanel({
     }
   }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, saved.status, showToast]);
 
+  const handlePublishConfig = useCallback(async () => {
+    setPublishingConfig(true);
+    try {
+      await onPublishConfig();
+      showToast('Deploy triggered — blog config updated', '#98c379');
+    } catch (e: any) {
+      showToast(`Config publish failed: ${e?.message || e}`, '#e06c75');
+    } finally {
+      setPublishingConfig(false);
+    }
+  }, [onPublishConfig, showToast]);
+
   return (
     <div style={{
       height: '100%',
@@ -238,6 +252,11 @@ export function PublishPanel({
             {themes.map((id) => (
               <ThemeChip key={id} themeId={id} selected={selectedTheme === id} onClick={() => setSelectedTheme(id)} t={t} />
             ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <HoverButton onClick={handlePublishConfig} t={t} disabled={publishingConfig}>
+              {publishingConfig ? 'Publishing config...' : 'Publish config'}
+            </HoverButton>
           </div>
         </AnimatedSection>
 

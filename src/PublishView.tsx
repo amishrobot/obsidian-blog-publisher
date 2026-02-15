@@ -76,6 +76,7 @@ export class PublishView extends ItemView {
           onSlugChange: (slug: string) => this.handleSlugChange(file, slug),
           onTagsChange: (tags: string[]) => this.handleTagsChange(file, tags),
           onPublish: () => this.handlePublish(file),
+          onPublishConfig: () => this.handlePublishConfig(file),
           onRunChecks: () => this.handleRunChecks(file),
           onOpenDeployHistory: () => this.handleOpenDeployHistory(),
         }),
@@ -187,7 +188,7 @@ export class PublishView extends ItemView {
       ordered.push(normalized);
     }
 
-    return ordered.length > 0 ? ordered : ['classic', 'paper', 'spruce', 'midnight', 'soviet'];
+    return ordered.length > 0 ? ordered : ['classic', 'paper', 'spruce', 'midnight', 'vaporwave', 'year2000', 'soviet'];
   }
 
   private async handleSlugChange(file: TFile, slug: string): Promise<void> {
@@ -209,6 +210,11 @@ export class PublishView extends ItemView {
     // Update saved snapshot to match what was just deployed
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
+    await this.refresh();
+  }
+
+  private async handlePublishConfig(file: TFile): Promise<void> {
+    await this.plugin.publishBlogConfig(file.path);
     await this.refresh();
   }
 

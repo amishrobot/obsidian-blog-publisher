@@ -171,6 +171,19 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Blog config repo path')
+      .setDesc('Path in GitHub repo for committed blog-config markdown')
+      .addText((text) =>
+        text
+          .setPlaceholder('content/settings/blog-config.md')
+          .setValue(this.plugin.settings.blogConfigRepoPath || '')
+          .onChange(async (value) => {
+            this.plugin.settings.blogConfigRepoPath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Site URL')
       .setDesc('Blog URL for success notice links')
       .addText((text) =>
@@ -185,10 +198,10 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Themes')
-      .setDesc('Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)')
+      .setDesc('Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,vaporwave,year2000,soviet)')
       .addText((text) =>
         text
-          .setPlaceholder('classic,paper,spruce,midnight,soviet')
+          .setPlaceholder('classic,paper,spruce,midnight,vaporwave,year2000,soviet')
           .setValue(this.plugin.settings.themes.join(','))
           .onChange(async (value) => {
             this.plugin.settings.themes = value

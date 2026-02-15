@@ -98,6 +98,7 @@ export function getEffectiveSettingsForPath(
     postUrlFormat: target.postUrlFormat ?? settings.postUrlFormat,
     themeFilePath: target.themeFilePath ?? settings.themeFilePath,
     themeRepoPath: target.themeRepoPath ?? settings.themeRepoPath,
+    blogConfigRepoPath: target.blogConfigRepoPath ?? settings.blogConfigRepoPath,
     siteUrl: target.siteUrl ?? settings.siteUrl,
     themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes,
   };

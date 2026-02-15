@@ -510,10 +510,11 @@ var DEFAULT_SETTINGS = {
   blogTargetsJson: "",
   themeFilePath: "Blog/Site/settings/theme.md",
   themeRepoPath: "content/settings/theme.md",
+  blogConfigRepoPath: "content/settings/blog-config.md",
   themePublishedHash: "",
   themePublishedCommit: "",
   siteUrl: "",
-  themes: ["classic", "paper", "spruce", "midnight", "soviet"]
+  themes: ["classic", "paper", "spruce", "midnight", "vaporwave", "year2000", "soviet"]
 };
 var STATUS_CONFIG = {
   draft: { label: "Draft", color: "#e5c07b", bg: "#e5c07b20", icon: "\u25CB", desc: "Work in progress" },
@@ -1135,21 +1136,24 @@ function ActionButton({ post, saved, hasChanges, publishing, onPublish, t: t3 })
 }
 
 // src/components/HoverButton.tsx
-function HoverButton({ onClick, t: t3, children }) {
+function HoverButton({ onClick, t: t3, children, disabled = false }) {
   const [hovered, hoverHandlers] = useHover();
+  const activeHover = hovered && !disabled;
   return /* @__PURE__ */ _(
     "button",
     {
       onClick,
-      ...hoverHandlers,
+      ...disabled ? {} : hoverHandlers,
+      disabled,
       style: {
         padding: "5px 10px",
         borderRadius: 5,
-        border: `1px solid ${hovered ? t3.accent + "60" : t3.border}`,
-        background: hovered ? t3.hoverBg : "transparent",
-        color: hovered ? t3.text : t3.textMuted,
+        border: `1px solid ${activeHover ? t3.accent + "60" : t3.border}`,
+        background: activeHover ? t3.hoverBg : "transparent",
+        color: disabled ? t3.textFaint : activeHover ? t3.text : t3.textMuted,
+        opacity: disabled ? 0.75 : 1,
         fontSize: 11,
-        cursor: "pointer",
+        cursor: disabled ? "default" : "pointer",
         fontFamily: "inherit",
         transition: "all 0.2s ease"
       }
@@ -1253,11 +1257,13 @@ function PublishPanel({
   onSlugChange,
   onTagsChange,
   onPublish,
+  onPublishConfig,
   onRunChecks,
   onOpenDeployHistory
 }) {
   var _a, _b;
   const [publishing, setPublishing] = d2(false);
+  const [publishingConfig, setPublishingConfig] = d2(false);
   const [checks, setChecks] = d2({});
   const [justPassed, setJustPassed] = d2({});
   const [checksRunning, setChecksRunning] = d2(false);
@@ -1267,7 +1273,7 @@ function PublishPanel({
   const t3 = THEME_PALETTES[selectedTheme] || THEME_PALETTES.classic;
   const themes = T2(() => {
     const ids = settings.themes.filter((id) => id.trim().length > 0);
-    return ids.length > 0 ? ids : ["classic", "paper", "spruce", "midnight", "soviet"];
+    return ids.length > 0 ? ids : ["classic", "paper", "spruce", "midnight", "vaporwave", "year2000", "soviet"];
   }, [settings.themes]);
   const changes = computeChanges(saved, post, settings.themes[0] || "classic", selectedTheme);
   const hasChanges = changes.length > 0;
@@ -1351,6 +1357,17 @@ function PublishPanel({
       setPublishing(false);
     }
   }, [onRunChecks, onPublish, onThemeChange, selectedTheme, settings.themes, post.status, saved.status, showToast]);
+  const handlePublishConfig = q2(async () => {
+    setPublishingConfig(true);
+    try {
+      await onPublishConfig();
+      showToast("Deploy triggered \u2014 blog config updated", "#98c379");
+    } catch (e3) {
+      showToast(`Config publish failed: ${(e3 == null ? void 0 : e3.message) || e3}`, "#e06c75");
+    } finally {
+      setPublishingConfig(false);
+    }
+  }, [onPublishConfig, showToast]);
   return /* @__PURE__ */ _("div", { style: {
     height: "100%",
     background: t3.bg,
@@ -1383,7 +1400,7 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 })))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
+  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 }))), /* @__PURE__ */ _("div", { style: { marginTop: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handlePublishConfig, t: t3, disabled: publishingConfig }, publishingConfig ? "Publishing config..." : "Publish config"))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
     ActionButton,
     {
       post,
@@ -1467,6 +1484,7 @@ var PublishView = class extends import_obsidian.ItemView {
           onSlugChange: (slug) => this.handleSlugChange(file, slug),
           onTagsChange: (tags) => this.handleTagsChange(file, tags),
           onPublish: () => this.handlePublish(file),
+          onPublishConfig: () => this.handlePublishConfig(file),
           onRunChecks: () => this.handleRunChecks(file),
           onOpenDeployHistory: () => this.handleOpenDeployHistory()
         }),
@@ -1566,7 +1584,7 @@ theme: ${theme}
         continue;
       ordered.push(normalized);
     }
-    return ordered.length > 0 ? ordered : ["classic", "paper", "spruce", "midnight", "soviet"];
+    return ordered.length > 0 ? ordered : ["classic", "paper", "spruce", "midnight", "vaporwave", "year2000", "soviet"];
   }
   async handleSlugChange(file, slug) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -1584,6 +1602,10 @@ theme: ${theme}
     await this.plugin.publishFile(file);
     const newState = await this.buildPostState(file);
     this.savedStates.set(file.path, { ...newState });
+    await this.refresh();
+  }
+  async handlePublishConfig(file) {
+    await this.plugin.publishBlogConfig(file.path);
     await this.refresh();
   }
   async handleRunChecks(file) {
@@ -2130,6 +2152,7 @@ var ConfigService = class {
     this.setStringValue(settings, "blogTargetsJson", data.blogTargetsJson);
     this.setStringValue(settings, "themeFilePath", data.themeFilePath);
     this.setStringValue(settings, "themeRepoPath", data.themeRepoPath);
+    this.setStringValue(settings, "blogConfigRepoPath", data.blogConfigRepoPath);
     this.setStringValue(settings, "siteUrl", data.siteUrl);
     this.setListValue(settings, "themes", data.themes);
     this.setTargetListValue(settings, data.blogTargets);
@@ -2181,6 +2204,10 @@ var ConfigService = class {
       target.themeFilePath = row.themeFilePath.trim();
     if (typeof row.themeRepoPath === "string" && row.themeRepoPath.trim().length > 0)
       target.themeRepoPath = row.themeRepoPath.trim();
+    if (typeof row.blogConfigRepoPath === "string" && row.blogConfigRepoPath.trim().length > 0)
+      target.blogConfigRepoPath = row.blogConfigRepoPath.trim();
+    if (typeof row.theme === "string" && row.theme.trim().length > 0)
+      target.theme = row.theme.trim();
     if (typeof row.siteUrl === "string" && row.siteUrl.trim().length > 0)
       target.siteUrl = row.siteUrl.trim();
     if (Array.isArray(row.themes)) {
@@ -2319,14 +2346,20 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian6.Setting(containerEl).setName("Blog config repo path").setDesc("Path in GitHub repo for committed blog-config markdown").addText(
+      (text) => text.setPlaceholder("content/settings/blog-config.md").setValue(this.plugin.settings.blogConfigRepoPath || "").onChange(async (value) => {
+        this.plugin.settings.blogConfigRepoPath = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian6.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
       (text) => text.setPlaceholder("https://mysite.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
         this.plugin.settings.siteUrl = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,soviet)").addText(
-      (text) => text.setPlaceholder("classic,paper,spruce,midnight,soviet").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,vaporwave,year2000,soviet)").addText(
+      (text) => text.setPlaceholder("classic,paper,spruce,midnight,vaporwave,year2000,soviet").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
         this.plugin.settings.themes = value.split(",").map((s3) => s3.trim()).filter((s3) => s3.length > 0);
         await this.plugin.saveSettings();
       })
@@ -2406,7 +2439,7 @@ function isPostPath(path, settings) {
   return resolveTargetForPath(path, settings) !== null;
 }
 function getEffectiveSettingsForPath(path, settings) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const target = resolveTargetForPath(path, settings);
   if (!target)
     return settings;
@@ -2420,12 +2453,14 @@ function getEffectiveSettingsForPath(path, settings) {
     postUrlFormat: (_e = target.postUrlFormat) != null ? _e : settings.postUrlFormat,
     themeFilePath: (_f = target.themeFilePath) != null ? _f : settings.themeFilePath,
     themeRepoPath: (_g = target.themeRepoPath) != null ? _g : settings.themeRepoPath,
-    siteUrl: (_h = target.siteUrl) != null ? _h : settings.siteUrl,
+    blogConfigRepoPath: (_h = target.blogConfigRepoPath) != null ? _h : settings.blogConfigRepoPath,
+    siteUrl: (_i = target.siteUrl) != null ? _i : settings.siteUrl,
     themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes
   };
 }
 
 // src/main.ts
+var STATE_CONFIG_PATH = "_state/blog-config.md";
 var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
@@ -2458,6 +2493,18 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
           return false;
         if (!checking)
           this.publishFile(file);
+        return true;
+      }
+    });
+    this.addCommand({
+      id: "publish-blog-config",
+      name: "Publish Blog Config",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || !this.isPostFile(file))
+          return false;
+        if (!checking)
+          this.publishBlogConfig(file.path);
         return true;
       }
     });
@@ -2647,6 +2694,32 @@ theme: ${theme}
       await this.saveSettings();
     });
   }
+  async publishBlogConfig(filePath) {
+    return this.withWriteLock(async () => {
+      var _a;
+      await this.refreshRuntimeSettings();
+      const resolvedPath = filePath || ((_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path);
+      const effectiveSettings = this.validatePublishConfig(resolvedPath, "config");
+      const repoPath = this.resolveBlogConfigRepoPath(effectiveSettings);
+      const stateFile = this.app.vault.getAbstractFileByPath(STATE_CONFIG_PATH);
+      if (!(stateFile instanceof import_obsidian7.TFile)) {
+        throw new Error(`Missing state config: ${STATE_CONFIG_PATH}`);
+      }
+      const content = await this.app.vault.read(stateFile);
+      this.validateBlogConfigContent(content);
+      const githubService = new GitHubService(this.app, effectiveSettings);
+      const remoteMatches = await githubService.fileContentEquals(repoPath, content);
+      if (remoteMatches) {
+        return { skipped: true, repoPath };
+      }
+      const commitSha = await githubService.publishTextFile(
+        repoPath,
+        content,
+        "Publish: blog config update"
+      );
+      return { skipped: false, repoPath, commitSha };
+    });
+  }
   // ── Settings ────────────────────────────────────────────────────
   async loadSettings() {
     this.configService = new ConfigService(this.app);
@@ -2769,10 +2842,61 @@ theme: ${theme}
     if (mode === "theme" && !String(effective.themeRepoPath || "").trim()) {
       errors.push("`themeRepoPath` is missing for this target.");
     }
+    if (mode === "config") {
+      const repoPath = this.resolveBlogConfigRepoPath(effective);
+      if (!repoPath) {
+        errors.push("`blogConfigRepoPath` is missing for this target.");
+      }
+    }
     if (errors.length > 0) {
       throw new Error(`Publish config check failed:
 - ${errors.join("\n- ")}`);
     }
     return effective;
+  }
+  resolveBlogConfigRepoPath(settings) {
+    const direct = String(settings.blogConfigRepoPath || "").trim();
+    if (direct)
+      return direct;
+    const themeRepoPath = String(settings.themeRepoPath || "").trim();
+    if (!themeRepoPath)
+      return "content/settings/blog-config.md";
+    if (themeRepoPath.endsWith("/theme.md")) {
+      return `${themeRepoPath.slice(0, -"/theme.md".length)}/blog-config.md`;
+    }
+    if (themeRepoPath.endsWith("theme.md")) {
+      return `${themeRepoPath.slice(0, -"theme.md".length)}blog-config.md`;
+    }
+    return "content/settings/blog-config.md";
+  }
+  validateBlogConfigContent(content) {
+    const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+    let parsed;
+    try {
+      parsed = (0, import_obsidian7.parseYaml)(body);
+    } catch (error) {
+      throw new Error(`Invalid blog-config format: ${(error == null ? void 0 : error.message) || error}`);
+    }
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("Invalid blog-config: expected YAML object body.");
+    }
+    const root = parsed;
+    const targets = root.blogTargets;
+    if (!Array.isArray(targets)) {
+      throw new Error("Invalid blog-config: missing `blogTargets` list.");
+    }
+    for (const target of targets) {
+      if (!target || typeof target !== "object")
+        continue;
+      const row = target;
+      const name = String(row.name || "unknown target");
+      const selectedTheme = typeof row.theme === "string" ? row.theme.trim() : "";
+      if (!selectedTheme)
+        continue;
+      const themes = Array.isArray(row.themes) ? row.themes.filter((value) => typeof value === "string").map((value) => value.trim()) : [];
+      if (themes.length > 0 && !themes.includes(selectedTheme)) {
+        throw new Error(`Invalid blog-config: target "${name}" has theme "${selectedTheme}" not present in its themes list.`);
+      }
+    }
   }
 };

@@ -14,6 +14,7 @@ export interface BlogPublisherSettings {
   blogTargetsJson: string;
   themeFilePath: string;
   themeRepoPath: string;
+  blogConfigRepoPath: string;
   themePublishedHash: string;
   themePublishedCommit: string;
   siteUrl: string;
@@ -30,6 +31,8 @@ export interface BlogTargetSettings {
   postUrlFormat?: string;
   themeFilePath?: string;
   themeRepoPath?: string;
+  blogConfigRepoPath?: string;
+  theme?: string;
   siteUrl?: string;
   themes?: string[];
 }
@@ -48,10 +51,11 @@ export const DEFAULT_SETTINGS: BlogPublisherSettings = {
   blogTargetsJson: '',
   themeFilePath: 'Blog/Site/settings/theme.md',
   themeRepoPath: 'content/settings/theme.md',
+  blogConfigRepoPath: 'content/settings/blog-config.md',
   themePublishedHash: '',
   themePublishedCommit: '',
   siteUrl: '',
-  themes: ['classic', 'paper', 'spruce', 'midnight', 'soviet'],
+  themes: ['classic', 'paper', 'spruce', 'midnight', 'vaporwave', 'year2000', 'soviet'],
 };
 
 // ── Post Data ───────────────────────────────────────────────────────
