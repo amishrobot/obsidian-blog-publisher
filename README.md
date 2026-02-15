@@ -113,7 +113,7 @@ Starter profile template: `docs/profile-template.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.19`
+- Canonical current release: `v2.0.21`
 - See full notes in `CHANGELOG.md`
 - BRAT release retention policy: keep latest 5 GitHub releases/tags only.
 - Current retained set: `v2.0.19`, `v2.0.18`, `v2.0.17`, `v2.0.16`, `v2.0.15`.
