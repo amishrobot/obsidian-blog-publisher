@@ -74,7 +74,6 @@ export default class BlogPublisherPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on('file-open', async (file) => {
         if (file instanceof TFile && this.isPostFile(file)) {
-          await this.syncTitleAndSlugFromName(file);
           this.scheduleRefresh(file);
           return;
         }
@@ -169,7 +168,7 @@ export default class BlogPublisherPlugin extends Plugin {
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       const currentTitle = String(fm.title || '');
-      if (currentTitle !== newTitle) {
+      if (!currentTitle.trim()) {
         fm.title = newTitle;
         needsUpdate = true;
       }

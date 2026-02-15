@@ -2552,7 +2552,6 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", async (file) => {
         if (file instanceof import_obsidian7.TFile && this.isPostFile(file)) {
-          await this.syncTitleAndSlugFromName(file);
           this.scheduleRefresh(file);
           return;
         }
@@ -2630,7 +2629,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     let needsUpdate = false;
     await this.app.fileManager.processFrontMatter(file, (fm) => {
       const currentTitle = String(fm.title || "");
-      if (currentTitle !== newTitle) {
+      if (!currentTitle.trim()) {
         fm.title = newTitle;
         needsUpdate = true;
       }

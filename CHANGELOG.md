@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.0.21 (2026-02-15)
+- Fixed title safety behavior so opening a post no longer overwrites frontmatter `title` with the filename/slug.
+- Retained rename-time slug sync behavior, but title is now only auto-filled when missing/blank.
+
 ## v2.0.20 (2026-02-15)
 - Added `Publish Blog Config` workflow for BRAT users and config-driven deploys:
   - New panel action: `Publish config`
