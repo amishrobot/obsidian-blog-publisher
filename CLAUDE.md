@@ -87,7 +87,7 @@ src/
 
 ## Release Canon
 
-- Current canonical release: `v2.0.18`
+- Current canonical release: `v2.0.19`
 - `v2.0.10` was tagged on the wrong commit and is superseded.
 - Keep `CHANGELOG.md` updated for every release.
 

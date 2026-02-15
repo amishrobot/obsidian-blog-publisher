@@ -11,6 +11,7 @@ Built for multi-site Obsidian-to-GitHub publishing.
 - **Update-first published flow** — published posts can be updated directly via the bottom `Update` action
 - **Multi-site routing** — routes files by canonical vault path: `Blog/<SiteName>/posts/**`
 - **Pre-publish checks** — validates frontmatter, slug format, links, and images before deploy
+- **Config guardrails** — validates target/token/repo config before GitHub API calls, with actionable fix messages
 - **Theme selection** — switch between site themes (Classic, Paper, Spruce, Midnight)
 - **Change tracking** — shows pending changes vs. last published state
 
@@ -112,10 +113,10 @@ Starter profile template: `docs/profile-template.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.18`
+- Canonical current release: `v2.0.19`
 - See full notes in `CHANGELOG.md`
 - BRAT release retention policy: keep latest 5 GitHub releases/tags only.
-- Current retained set: `v2.0.18`, `v2.0.17`, `v2.0.16`, `v2.0.15`, `v2.0.14`.
+- Current retained set: `v2.0.19`, `v2.0.18`, `v2.0.17`, `v2.0.16`, `v2.0.15`.
 
 ## Operations Notes
 

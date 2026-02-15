@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.19 (2026-02-15)
+- Added publish-time config validation with actionable messages for common setup errors:
+  - missing token
+  - invalid/missing `repository`
+  - missing `branch`
+  - missing target mapping for current note path
+  - missing repo path fields
+- Added config comments/templates to make `_state/blog-config.md` safer to edit.
+
 ## v2.0.18 (2026-02-15)
 - Added canonical, shareable routing support for `Blog/<SiteName>/posts/**`.
 - `blogTargets` entries can now be defined by `name` only; `postsFolder` is inferred as `Blog/<name>/posts`.

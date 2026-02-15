@@ -2590,7 +2590,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
-      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const effectiveSettings = this.validatePublishConfig(file.path, "post");
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
       const githubService = new GitHubService(this.app, effectiveSettings);
@@ -2606,7 +2606,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     await this.withWriteLock(async () => {
       await this.refreshRuntimeSettings();
       await this.ensurePublishDate(file);
-      const effectiveSettings = this.getEffectiveSettingsForPath(file.path);
+      const effectiveSettings = this.validatePublishConfig(file.path, "post");
       const postService = new PostService(this.app, effectiveSettings);
       const postData = await postService.buildPostData(file);
       const filePaths = [postData.repoPostPath, ...postData.images.map((img) => img.repoPath)];
@@ -2621,8 +2621,10 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   }
   async publishThemeSetting(theme, filePath) {
     await this.withWriteLock(async () => {
+      var _a;
       await this.refreshRuntimeSettings();
-      const effectiveSettings = this.getEffectiveSettingsForPath(filePath);
+      const resolvedPath = filePath || ((_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path);
+      const effectiveSettings = this.validatePublishConfig(resolvedPath, "theme");
       const content = `---
 theme: ${theme}
 ---
@@ -2726,5 +2728,51 @@ theme: ${theme}
     this.settings = this.configService.merge(pluginData, stateOverrides);
     await this.hydrateTokenFromSecretsFile();
     this.settings.blogTargets = this.resolveBlogTargets(this.settings.blogTargets, this.settings.blogTargetsJson);
+  }
+  validatePublishConfig(path, mode) {
+    const errors = [];
+    const activePath = String(path || "").trim();
+    if (!activePath) {
+      errors.push("Could not determine the current note path.");
+    }
+    const hasTargets = (this.settings.blogTargets || []).length > 0;
+    const target = activePath ? this.resolveTargetForPath(activePath) : null;
+    if (hasTargets && !target && activePath) {
+      errors.push(
+        `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Blog/<SiteName>/posts\`).`
+      );
+    }
+    const effective = this.getEffectiveSettingsForPath(activePath || void 0);
+    const token = String(effective.githubToken || "").trim();
+    if (!token) {
+      const secretsPath = String(effective.secretsFilePath || ".system/config.json").trim();
+      const tokenKey = String(effective.githubTokenConfigKey || "blog_publisher_github_token").trim();
+      errors.push(
+        `GitHub token not configured. Set \`${tokenKey}\` in \`${secretsPath}\` or set \`githubToken\` in plugin settings.`
+      );
+    }
+    const repository = String(effective.repository || "").trim();
+    if (!repository || !/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+      errors.push("Repository is missing/invalid. Use `owner/repo` format in target config.");
+    }
+    if (!String(effective.branch || "").trim()) {
+      errors.push("Branch is missing. Set `branch` in target config.");
+    }
+    if (mode === "post") {
+      if (!String(effective.repoPostsPath || "").trim()) {
+        errors.push("`repoPostsPath` is missing for this target.");
+      }
+      if (!String(effective.repoImagesPath || "").trim()) {
+        errors.push("`repoImagesPath` is missing for this target.");
+      }
+    }
+    if (mode === "theme" && !String(effective.themeRepoPath || "").trim()) {
+      errors.push("`themeRepoPath` is missing for this target.");
+    }
+    if (errors.length > 0) {
+      throw new Error(`Publish config check failed:
+- ${errors.join("\n- ")}`);
+    }
+    return effective;
   }
 };
