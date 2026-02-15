@@ -108,6 +108,7 @@ Routing rules:
    `posts-slug` -> `/posts/slug`
 
 Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
+Starter profile template: `docs/profile-template.md`.
 
 ## Releases
 
