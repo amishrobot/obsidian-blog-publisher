@@ -1,0 +1,60 @@
+name: Version Guard
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  enforce-version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce plugin version bump when plugin files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_ref="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "${base_ref}" --depth=1
+
+          changed_files="$(git diff --name-only "origin/${base_ref}"...HEAD)"
+          echo "Changed files:"
+          echo "${changed_files}"
+
+          plugin_changed=0
+          while IFS= read -r changed; do
+            [[ -z "${changed}" ]] && continue
+            if [[ "${changed}" == src/* || "${changed}" == "main.js" || "${changed}" == "styles.css" || "${changed}" == "manifest.json" || "${changed}" == "package.json" || "${changed}" == "esbuild.config.mjs" ]]; then
+              plugin_changed=1
+              break
+            fi
+          done <<< "${changed_files}"
+
+          if [[ "${plugin_changed}" -eq 0 ]]; then
+            echo "No plugin-impacting changes detected."
+            exit 0
+          fi
+
+          current_manifest_version="$(node -p "require('./manifest.json').version")"
+          current_package_version="$(node -p "require('./package.json').version")"
+          base_manifest_version="$(git show "origin/${base_ref}:manifest.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s);process.stdout.write(String(j.version||""));})')"
+          base_package_version="$(git show "origin/${base_ref}:package.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s);process.stdout.write(String(j.version||""));})')"
+
+          echo "Base manifest/package: ${base_manifest_version} / ${base_package_version}"
+          echo "PR manifest/package:   ${current_manifest_version} / ${current_package_version}"
+
+          if [[ "${current_manifest_version}" != "${current_package_version}" ]]; then
+            echo "manifest.json and package.json versions must match" >&2
+            exit 1
+          fi
+
+          if [[ "${current_manifest_version}" == "${base_manifest_version}" ]]; then
+            echo "Plugin files changed but version was not bumped." >&2
+            exit 1
+          fi
+
+          echo "Version guard passed."
