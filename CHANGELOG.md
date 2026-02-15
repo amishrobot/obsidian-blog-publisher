@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.17 (2026-02-15)
 - Added JoshOS-style secret resolution for GitHub token:
   - New settings: `secretsFilePath` (default `.system/config.json`) and `githubTokenConfigKey` (default `blog_publisher_github_token`)
   - If `githubToken` is empty, plugin loads token from the configured vault JSON key.

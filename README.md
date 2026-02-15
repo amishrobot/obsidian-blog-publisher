@@ -111,10 +111,10 @@ Full operating spec/runbook: `docs/multi-site-publishing-runbook.md`.
 
 ## Releases
 
-- Canonical current release: `v2.0.16`
+- Canonical current release: `v2.0.17`
 - See full notes in `CHANGELOG.md`
 - BRAT release retention policy: keep latest 5 GitHub releases/tags only.
-- Current retained set: `v2.0.16`, `v2.0.15`, `v2.0.14`, `v2.0.13`, `v2.0.12`.
+- Current retained set: `v2.0.17`, `v2.0.16`, `v2.0.15`, `v2.0.14`, `v2.0.13`.
 
 ## Operations Notes
 
