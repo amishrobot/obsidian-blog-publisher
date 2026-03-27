@@ -1,7 +1,7 @@
 import { App, TFile, parseYaml } from 'obsidian';
 import { BlogPublisherSettings, BlogTargetSettings } from '../models/types';
 
-const STATE_FILE_PATH = '_state/blog-config.md';
+const STATE_FILE_PATH = '_system/_state/blog-config.md';
 
 export class ConfigService {
   private app: App;

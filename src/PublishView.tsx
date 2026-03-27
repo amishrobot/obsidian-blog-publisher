@@ -44,7 +44,7 @@ export class PublishView extends ItemView {
 
       if (!file) {
         render(
-          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post or _state/blog-config.md to see publishing controls.'),
+          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post or _system/_state/blog-config.md to see publishing controls.'),
           container
         );
         return;
@@ -143,7 +143,7 @@ export class PublishView extends ItemView {
     render(
       h('div', { style: 'padding:16px;color:#c8d1dc;font-size:13px;display:flex;flex-direction:column;gap:12px;' }, [
         h('div', { style: 'font-size:14px;font-weight:600;' }, 'Blog Config'),
-        h('div', { style: 'color:#8a94a4;line-height:1.4;' }, 'Publishing here syncs _state/blog-config.md to repo config path(s) and triggers deploy.'),
+        h('div', { style: 'color:#8a94a4;line-height:1.4;' }, 'Publishing here syncs _system/_state/blog-config.md to repo config path(s) and triggers deploy.'),
         h('div', { style: 'color:#667085;font-family:monospace;font-size:12px;' }, file.path),
         h('button', {
           'data-config-publish': 'true',

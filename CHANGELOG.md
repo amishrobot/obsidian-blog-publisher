@@ -19,9 +19,9 @@
 - Added `Publish Blog Config` workflow for BRAT users and config-driven deploys:
   - New panel action: `Publish config`
   - New command: `Publish Blog Config`
-  - Publishes `_state/blog-config.md` to repo config path via GitHub API.
+  - Publishes `_system/_state/blog-config.md` to repo config path via GitHub API.
 - Added config-file mode in the panel:
-  - Opening `_state/blog-config.md` now shows dedicated config publishing controls.
+  - Opening `_system/_state/blog-config.md` now shows dedicated config publishing controls.
 - Added `blogConfigRepoPath` support in settings/target parsing (with fallback derived from `themeRepoPath`).
 - Added validation for `blogTargets[].theme` against `blogTargets[].themes` before config publish.
 - Updated default theme list to include `vaporwave` and `year2000`.
@@ -33,7 +33,7 @@
   - missing `branch`
   - missing target mapping for current note path
   - missing repo path fields
-- Added config comments/templates to make `_state/blog-config.md` safer to edit.
+- Added config comments/templates to make `_system/_state/blog-config.md` safer to edit.
 
 ## v2.0.18 (2026-02-15)
 - Added canonical, shareable routing support for `Blog/<SiteName>/posts/**`.
@@ -46,7 +46,7 @@
   - New settings: `secretsFilePath` (default `.system/config.json`) and `githubTokenConfigKey` (default `blog_publisher_github_token`)
   - If `githubToken` is empty, plugin loads token from the configured vault JSON key.
 - Updated settings UI and docs to formalize config split:
-  - Non-secrets in `_state/blog-config.md`
+  - Non-secrets in `_system/_state/blog-config.md`
   - Secrets in `.system/config.json`
 
 ## v2.0.16 (2026-02-14)

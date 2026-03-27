@@ -8,7 +8,7 @@ import { BlogPublisherSettings, BlogTargetSettings, DEFAULT_SETTINGS } from './m
 import { SettingsTab } from './SettingsTab';
 import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath } from './utils/targetRouting';
 
-const STATE_CONFIG_PATH = '_state/blog-config.md';
+const STATE_CONFIG_PATH = '_system/_state/blog-config.md';
 
 export interface PublishConfigResult {
   skipped: boolean;

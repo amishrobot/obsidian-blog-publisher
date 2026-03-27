@@ -43,7 +43,7 @@ publishedHash: def456...
 | Build | esbuild with JSX transform |
 | API | Obsidian Plugin API (ItemView, requestUrl, parseYaml) |
 | Backend | GitHub REST API (blobs, trees, commits) |
-| Config | JoshOS `_state/blog-config.md` with Obsidian settings fallback |
+| Config | JoshOS `_system/_state/blog-config.md` with Obsidian settings fallback |
 
 ## Project Structure
 
@@ -62,7 +62,7 @@ src/
 │   ├── GitHubService.ts        # GitHub REST API (publish/unpublish via git tree API)
 │   ├── PostService.ts          # Build post data, resolve images, compute hashes
 │   │                           # Parses frontmatter via parseYaml (NOT metadataCache)
-│   ├── ConfigService.ts        # Read JoshOS _state/blog-config.md
+│   ├── ConfigService.ts        # Read JoshOS _system/_state/blog-config.md
 │   └── ChecksService.ts       # 5 pre-publish validators
 ├── hooks/useHover.ts           # Shared hover state hook
 └── components/                 # 14 Preact components (StatusPill, ThemeChip, etc.)
@@ -113,7 +113,7 @@ src/
 | Blog site repo | `~/Projects/AmishRobot-Blog/` |
 | JoshOS code repo | `~/Projects/JoshOS/` |
 | Vault | `~/JoshOS/` |
-| Config state file | `~/JoshOS/_state/blog-config.md` |
+| Config state file | `~/JoshOS/_system/_state/blog-config.md` |
 
 ## Design References
 

@@ -1458,7 +1458,7 @@ var PublishView = class extends import_obsidian.ItemView {
       const file = this.resolveCurrentPanelFile(explicitFile);
       if (!file) {
         G(
-          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post or _state/blog-config.md to see publishing controls."),
+          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post or _system/_state/blog-config.md to see publishing controls."),
           container
         );
         return;
@@ -1542,7 +1542,7 @@ var PublishView = class extends import_obsidian.ItemView {
     G(
       _("div", { style: "padding:16px;color:#c8d1dc;font-size:13px;display:flex;flex-direction:column;gap:12px;" }, [
         _("div", { style: "font-size:14px;font-weight:600;" }, "Blog Config"),
-        _("div", { style: "color:#8a94a4;line-height:1.4;" }, "Publishing here syncs _state/blog-config.md to repo config path(s) and triggers deploy."),
+        _("div", { style: "color:#8a94a4;line-height:1.4;" }, "Publishing here syncs _system/_state/blog-config.md to repo config path(s) and triggers deploy."),
         _("div", { style: "color:#667085;font-family:monospace;font-size:12px;" }, file.path),
         _("button", {
           "data-config-publish": "true",
@@ -2160,7 +2160,7 @@ var ChecksService = class {
 
 // src/services/ConfigService.ts
 var import_obsidian5 = require("obsidian");
-var STATE_FILE_PATH = "_state/blog-config.md";
+var STATE_FILE_PATH = "_system/_state/blog-config.md";
 var ConfigService = class {
   constructor(app) {
     this.app = app;
@@ -2373,7 +2373,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_state/blog-config.md` is not present.").addTextArea(
+    new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_system/_state/blog-config.md` is not present.").addTextArea(
       (text) => text.setPlaceholder('[{"name":"MySite","repository":"your-org/your-blog-repo","siteUrl":"https://mysite.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
         this.plugin.settings.blogTargetsJson = value;
         await this.plugin.saveSettings();
@@ -2409,7 +2409,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_state/blog-config.md` for per-folder repo/site routing.");
+    new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_system/_state/blog-config.md` for per-folder repo/site routing.");
   }
 };
 
@@ -2505,7 +2505,7 @@ function getEffectiveSettingsForPath(path, settings) {
 }
 
 // src/main.ts
-var STATE_CONFIG_PATH = "_state/blog-config.md";
+var STATE_CONFIG_PATH = "_system/_state/blog-config.md";
 var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);

@@ -133,7 +133,7 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Blog targets (JSON)')
-      .setDesc('Optional per-folder routing. Used when `_state/blog-config.md` is not present.')
+      .setDesc('Optional per-folder routing. Used when `_system/_state/blog-config.md` is not present.')
       .addTextArea((text) =>
         text
           .setPlaceholder('[{"name":"MySite","repository":"your-org/your-blog-repo","siteUrl":"https://mysite.com"}]')
@@ -214,6 +214,6 @@ export class SettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Multi-blog targets')
-      .setDesc('Configure `blogTargets` in `_state/blog-config.md` for per-folder repo/site routing.');
+      .setDesc('Configure `blogTargets` in `_system/_state/blog-config.md` for per-folder repo/site routing.');
   }
 }

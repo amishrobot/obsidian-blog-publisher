@@ -28,7 +28,7 @@ Unknown site folders do not publish.
 
 ## Plugin Config Schema
 
-Configured in `_state/blog-config.md`:
+Configured in `_system/_state/blog-config.md`:
 
 ```yaml
 blogTargets:

@@ -41,7 +41,7 @@ This plugin is installed via [BRAT](https://github.com/TfTHacker/obsidian42-brat
 
 The plugin follows JoshOS config conventions:
 
-- Non-secret publishing config in `_state/blog-config.md`
+- Non-secret publishing config in `_system/_state/blog-config.md`
 - Secrets in vault-local `.system/config.json`
 - Plugin settings panel as fallback/override
 
@@ -58,7 +58,7 @@ Required settings:
 | `blogTargets` | Optional YAML array for per-folder repo/site/theme routing |
 | `blogTargetsJson` | Optional JSON fallback when state file isn’t used |
 
-Optional multi-blog routing (`_state/blog-config.md`):
+Optional multi-blog routing (`_system/_state/blog-config.md`):
 
 ```yaml
 blogTargets:
@@ -94,7 +94,7 @@ JoshOS-style secret storage (`.system/config.json`):
 
 Token resolution order:
 
-1. `githubToken` from plugin settings or `_state/blog-config.md` (if set)
+1. `githubToken` from plugin settings or `_system/_state/blog-config.md` (if set)
 2. `secretsFilePath` + `githubTokenConfigKey` lookup in vault JSON
 
 If `blogTargets` is omitted, the plugin keeps the legacy single-folder behavior using `postsFolder`.

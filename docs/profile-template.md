@@ -11,7 +11,7 @@ Blog/
     settings/
 ```
 
-## 2) `_state/blog-config.md`
+## 2) `_system/_state/blog-config.md`
 
 ```yaml
 ---
