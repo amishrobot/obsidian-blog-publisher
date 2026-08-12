@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.0.25 (2026-08-12)
+- Fixed post-path routing after the vault reorg moved `Blogs/` under `Library/`. Targets
+  without an explicit `postsFolder` now resolve against `Library/Blogs/<Site>/posts` as well
+  as the legacy `Blogs/<Site>/posts` and `Blog/<Site>/posts` roots.
+- Applied the same roots to canonical path detection when no `blogTargets` are configured.
+- Updated default settings and settings-tab placeholders to the `Library/Blogs/...` layout.
+- Made the "no matching target" error recommend the current folder convention.
+
+## v2.0.24 (2026-03-27)
+- Moved config state file lookup from `_state/blog-config.md` to `_system/_state/blog-config.md`
+  for the JoshOS vault reorg.
+
 ## v2.0.23 (2026-02-15)
 - Fixed new-note publish regression by auto-seeding required frontmatter on publish preflight:
   - set `date` only when missing

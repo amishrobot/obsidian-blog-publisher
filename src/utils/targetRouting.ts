@@ -1,7 +1,11 @@
 import { BlogPublisherSettings, BlogTargetSettings } from '../models/types';
 
 const LEGACY_POSTS_FOLDERS = ['Blog/posts', 'Personal/Blog/posts'];
-const CANONICAL_SITE_POSTS_RE = /^Blog\/([^/]+)\/posts(?:\/|$)/i;
+
+// Vault roots that hold per-site `<root>/<SiteName>/posts` folders, current first.
+// The 2026-08 vault reorg moved `Blogs/` under `Library/`; the older roots stay
+// so vaults that were never reorganized keep resolving.
+const SITE_ROOTS = ['Library/Blogs', 'Blogs', 'Blog'];
 
 export function normalizeFolderPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
@@ -21,22 +25,28 @@ function legacyFolders(settings: BlogPublisherSettings): string[] {
 }
 
 function canonicalFolderFromPath(path: string): string | null {
-  const normalizedPath = normalizeFolderPath(path);
-  const match = normalizedPath.match(CANONICAL_SITE_POSTS_RE);
-  if (!match) return null;
-  return `Blog/${match[1]}/posts`;
+  const segments = normalizeFolderPath(path).split('/');
+  for (const root of SITE_ROOTS) {
+    const depth = root.split('/').length;
+    if (segments.slice(0, depth).join('/').toLowerCase() !== root.toLowerCase()) continue;
+    const site = segments[depth];
+    const posts = segments[depth + 1];
+    if (!site || String(posts || '').toLowerCase() !== 'posts') continue;
+    return `${root}/${site}/posts`;
+  }
+  return null;
 }
 
-function inferredFolderFromName(name: string | undefined): string | null {
+function inferredFoldersFromName(name: string | undefined): string[] {
   const value = String(name || '').trim();
-  if (!value) return null;
-  return `Blog/${value}/posts`;
+  if (!value) return [];
+  return SITE_ROOTS.map((root) => `${root}/${value}/posts`);
 }
 
 function targetCandidateFolders(target: BlogTargetSettings): string[] {
   const candidates = [
     normalizeFolderPath(target.postsFolder || ''),
-    normalizeFolderPath(inferredFolderFromName(target.name) || ''),
+    ...inferredFoldersFromName(target.name).map(normalizeFolderPath),
   ].filter(Boolean);
   return [...new Set(candidates)];
 }

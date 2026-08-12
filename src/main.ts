@@ -446,7 +446,7 @@ export default class BlogPublisherPlugin extends Plugin {
     const target = activePath ? this.resolveTargetForPath(activePath) : null;
     if (mode !== 'config' && hasTargets && !target && activePath) {
       errors.push(
-        `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Blog/<SiteName>/posts\`).`
+        `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Library/Blogs/<SiteName>/posts\`).`
       );
     }
 

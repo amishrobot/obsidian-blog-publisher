@@ -502,13 +502,13 @@ var DEFAULT_SETTINGS = {
   githubTokenConfigKey: "blog_publisher_github_token",
   repository: "",
   branch: "main",
-  postsFolder: "Blog/Site/posts",
+  postsFolder: "Library/Blogs/Site/posts",
   repoPostsPath: "content/posts",
   repoImagesPath: "public/_assets/images",
   postUrlFormat: "year-slug",
   blogTargets: [],
   blogTargetsJson: "",
-  themeFilePath: "Blog/Site/settings/theme.md",
+  themeFilePath: "Library/Blogs/Site/settings/theme.md",
   themeRepoPath: "content/settings/theme.md",
   blogConfigRepoPath: "content/settings/blog-config.md",
   themePublishedHash: "",
@@ -2350,7 +2350,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
-      (text) => text.setPlaceholder("Blog/MySite/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
+      (text) => text.setPlaceholder("Library/Blogs/MySite/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
         this.plugin.settings.postsFolder = value;
         await this.plugin.saveSettings();
       })
@@ -2380,7 +2380,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
       })
     );
     new import_obsidian6.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
-      (text) => text.setPlaceholder("Blog/MySite/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
+      (text) => text.setPlaceholder("Library/Blogs/MySite/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
         this.plugin.settings.themeFilePath = value;
         await this.plugin.saveSettings();
       })
@@ -2415,7 +2415,7 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
 
 // src/utils/targetRouting.ts
 var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
-var CANONICAL_SITE_POSTS_RE = /^Blog\/([^/]+)\/posts(?:\/|$)/i;
+var SITE_ROOTS = ["Library/Blogs", "Blogs", "Blog"];
 function normalizeFolderPath(path) {
   return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
 }
@@ -2432,22 +2432,29 @@ function legacyFolders(settings) {
   return [...new Set(merged.filter(Boolean))];
 }
 function canonicalFolderFromPath(path) {
-  const normalizedPath = normalizeFolderPath(path);
-  const match = normalizedPath.match(CANONICAL_SITE_POSTS_RE);
-  if (!match)
-    return null;
-  return `Blog/${match[1]}/posts`;
+  const segments = normalizeFolderPath(path).split("/");
+  for (const root of SITE_ROOTS) {
+    const depth = root.split("/").length;
+    if (segments.slice(0, depth).join("/").toLowerCase() !== root.toLowerCase())
+      continue;
+    const site = segments[depth];
+    const posts = segments[depth + 1];
+    if (!site || String(posts || "").toLowerCase() !== "posts")
+      continue;
+    return `${root}/${site}/posts`;
+  }
+  return null;
 }
-function inferredFolderFromName(name) {
+function inferredFoldersFromName(name) {
   const value = String(name || "").trim();
   if (!value)
-    return null;
-  return `Blog/${value}/posts`;
+    return [];
+  return SITE_ROOTS.map((root) => `${root}/${value}/posts`);
 }
 function targetCandidateFolders(target) {
   const candidates = [
     normalizeFolderPath(target.postsFolder || ""),
-    normalizeFolderPath(inferredFolderFromName(target.name) || "")
+    ...inferredFoldersFromName(target.name).map(normalizeFolderPath)
   ].filter(Boolean);
   return [...new Set(candidates)];
 }
@@ -2879,7 +2886,7 @@ theme: ${theme}
     const target = activePath ? this.resolveTargetForPath(activePath) : null;
     if (mode !== "config" && hasTargets && !target && activePath) {
       errors.push(
-        `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Blog/<SiteName>/posts\`).`
+        `No \`blogTargets\` match for \`${activePath}\`. Add a target with \`postsFolder\` for this path (recommended: \`Library/Blogs/<SiteName>/posts\`).`
       );
     }
     const effective = this.getEffectiveSettingsForPath(activePath || void 0);

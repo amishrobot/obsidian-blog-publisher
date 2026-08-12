@@ -84,7 +84,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Vault folder to watch for posts')
       .addText((text) =>
         text
-          .setPlaceholder('Blog/MySite/posts')
+          .setPlaceholder('Library/Blogs/MySite/posts')
           .setValue(this.plugin.settings.postsFolder)
           .onChange(async (value) => {
             this.plugin.settings.postsFolder = value;
@@ -149,7 +149,7 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc('Vault markdown file to publish when theme settings change')
       .addText((text) =>
         text
-          .setPlaceholder('Blog/MySite/settings/theme.md')
+          .setPlaceholder('Library/Blogs/MySite/settings/theme.md')
           .setValue(this.plugin.settings.themeFilePath)
           .onChange(async (value) => {
             this.plugin.settings.themeFilePath = value;

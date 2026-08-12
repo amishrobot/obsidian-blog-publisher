@@ -77,7 +77,21 @@ describe('target routing', () => {
     expect(effective.postUrlFormat).toBe('posts-slug');
   });
 
-  it('infers canonical Blog/<name>/posts folder from target name when postsFolder omitted', () => {
+  it('routes reorganized Library/Blogs post paths to their target', () => {
+    const settings: BlogPublisherSettings = {
+      ...baseSettings,
+      blogTargets: baseSettings.blogTargets!.map((target) => ({
+        ...target,
+        postsFolder: `Library/${target.postsFolder}`,
+      })),
+    };
+
+    const target = resolveTargetForPath('Library/Blogs/AmishRobot/posts/2002/45.md', settings);
+    expect(target?.repository).toBe('amishrobot/amishrobot.com');
+    expect(target?.postsFolder).toBe('Library/Blogs/AmishRobot/posts');
+  });
+
+  it('infers a posts folder from target name for each known site root', () => {
     const settings: BlogPublisherSettings = {
       ...baseSettings,
       blogTargets: [
@@ -91,16 +105,28 @@ describe('target routing', () => {
       ],
     };
 
-    const target = resolveTargetForPath('Blog/KidSite/posts/hello-world.md', settings);
-    expect(target?.repository).toBe('kid/site');
-    expect(target?.postsFolder).toBe('Blog/KidSite/posts');
+    for (const root of ['Library/Blogs', 'Blogs', 'Blog']) {
+      const target = resolveTargetForPath(`${root}/KidSite/posts/hello-world.md`, settings);
+      expect(target?.repository).toBe('kid/site');
+      expect(target?.postsFolder).toBe(`${root}/KidSite/posts`);
+    }
   });
 
-  it('treats canonical Blog/<site>/posts path as post path when no targets configured', () => {
+  it('treats canonical <root>/<site>/posts paths as post paths when no targets configured', () => {
     const settings: BlogPublisherSettings = {
       ...baseSettings,
       blogTargets: [],
     };
+    expect(isPostPath('Library/Blogs/AnySite/posts/hello-world.md', settings)).toBe(true);
+    expect(isPostPath('Blogs/AnySite/posts/hello-world.md', settings)).toBe(true);
     expect(isPostPath('Blog/AnySite/posts/hello-world.md', settings)).toBe(true);
+  });
+
+  it('does not treat a non-posts folder under a site root as a post path', () => {
+    const settings: BlogPublisherSettings = {
+      ...baseSettings,
+      blogTargets: [],
+    };
+    expect(isPostPath('Library/Blogs/AnySite/settings/theme.md', settings)).toBe(false);
   });
 });
