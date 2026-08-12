@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlogPublisherSettings } from '../src/models/types';
-import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath } from '../src/utils/targetRouting';
+import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath, siteNameFromPath } from '../src/utils/targetRouting';
 
 const baseSettings: BlogPublisherSettings = {
   githubToken: '',
@@ -120,6 +120,13 @@ describe('target routing', () => {
     expect(isPostPath('Library/Blogs/AnySite/posts/hello-world.md', settings)).toBe(true);
     expect(isPostPath('Blogs/AnySite/posts/hello-world.md', settings)).toBe(true);
     expect(isPostPath('Blog/AnySite/posts/hello-world.md', settings)).toBe(true);
+  });
+
+  it('names the site for an unconfigured blog post path', () => {
+    expect(siteNameFromPath('Library/Blogs/Reese and Anna/posts/2002/first.md')).toBe('Reese and Anna');
+    expect(siteNameFromPath('Blog/KidSite/posts/hello.md')).toBe('KidSite');
+    expect(siteNameFromPath('Library/Blogs/AnySite/settings/theme.md')).toBeNull();
+    expect(siteNameFromPath('_system/_state/blog-config.md')).toBeNull();
   });
 
   it('does not treat a non-posts folder under a site root as a post path', () => {

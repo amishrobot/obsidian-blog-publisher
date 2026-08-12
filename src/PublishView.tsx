@@ -4,6 +4,7 @@ import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
 import { PostState } from './models/types';
 import { CheckResult } from './services/ChecksService';
+import { siteNameFromPath } from './utils/targetRouting';
 
 export const VIEW_TYPE_BLOG_PUBLISHER = 'blog-publisher-view';
 
@@ -44,7 +45,7 @@ export class PublishView extends ItemView {
 
       if (!file) {
         render(
-          h('div', { style: 'padding:20px;color:#888;font-size:13px;' }, 'Open a blog post or _system/_state/blog-config.md to see publishing controls.'),
+          h('div', { style: 'padding:20px;color:#888;font-size:13px;line-height:1.5;' }, this.emptyStateMessage(explicitFile)),
           container
         );
         return;
@@ -95,6 +96,20 @@ export class PublishView extends ItemView {
       );
       console.error('Publish panel refresh failed:', error);
     }
+  }
+
+  /**
+   * A note under `<root>/<Site>/posts/` with no matching target looks identical to
+   * a note that has nothing to do with blogging, so name the missing target instead
+   * of showing the generic prompt.
+   */
+  private emptyStateMessage(explicitFile?: TFile | null): string {
+    const active = explicitFile instanceof TFile ? explicitFile : this.app.workspace.getActiveFile();
+    const site = active ? siteNameFromPath(active.path) : null;
+    if (site) {
+      return `No blog target configured for "${site}". Add it to blogTargets in _system/_state/blog-config.md to publish these posts.`;
+    }
+    return 'Open a blog post or _system/_state/blog-config.md to see publishing controls.';
   }
 
   private isPostFile(file: { path: string }): boolean {

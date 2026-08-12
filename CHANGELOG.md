@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.26 (2026-08-12)
+- Panel now names the missing target when a note lives under `<root>/<Site>/posts/` but no
+  `blogTargets` entry matches, instead of showing the generic "Open a blog post…" prompt.
+  A misrouted post and an unconfigured blog used to look identical.
+
 ## v2.0.25 (2026-08-12)
 - Fixed post-path routing after the vault reorg moved `Blogs/` under `Library/`. Targets
   without an explicit `postsFolder` now resolve against `Library/Blogs/<Site>/posts` as well

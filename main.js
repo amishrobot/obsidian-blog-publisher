@@ -1428,6 +1428,111 @@ function PublishPanel({
   } }, toast.msg));
 }
 
+// src/utils/targetRouting.ts
+var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
+var SITE_ROOTS = ["Library/Blogs", "Blogs", "Blog"];
+function normalizeFolderPath(path) {
+  return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+}
+function pathMatchesFolder(path, folder) {
+  const normalizedPath = normalizeFolderPath(path);
+  const normalizedFolder = normalizeFolderPath(folder);
+  if (!normalizedFolder)
+    return false;
+  return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
+}
+function legacyFolders(settings) {
+  const configured = normalizeFolderPath(settings.postsFolder || "");
+  const merged = [configured, ...LEGACY_POSTS_FOLDERS.map(normalizeFolderPath)];
+  return [...new Set(merged.filter(Boolean))];
+}
+function siteNameFromPath(path) {
+  var _a, _b;
+  return (_b = (_a = sitePostsFolderFromPath(path)) == null ? void 0 : _a.site) != null ? _b : null;
+}
+function sitePostsFolderFromPath(path) {
+  const segments = normalizeFolderPath(path).split("/");
+  for (const root of SITE_ROOTS) {
+    const depth = root.split("/").length;
+    if (segments.slice(0, depth).join("/").toLowerCase() !== root.toLowerCase())
+      continue;
+    const site = segments[depth];
+    if (!site || String(segments[depth + 1] || "").toLowerCase() !== "posts")
+      continue;
+    return { root, site };
+  }
+  return null;
+}
+function canonicalFolderFromPath(path) {
+  const match = sitePostsFolderFromPath(path);
+  return match ? `${match.root}/${match.site}/posts` : null;
+}
+function inferredFoldersFromName(name) {
+  const value = String(name || "").trim();
+  if (!value)
+    return [];
+  return SITE_ROOTS.map((root) => `${root}/${value}/posts`);
+}
+function targetCandidateFolders(target) {
+  const candidates = [
+    normalizeFolderPath(target.postsFolder || ""),
+    ...inferredFoldersFromName(target.name).map(normalizeFolderPath)
+  ].filter(Boolean);
+  return [...new Set(candidates)];
+}
+function resolveTargetForPath(path, settings) {
+  if (!path)
+    return null;
+  const targets = settings.blogTargets || [];
+  if (targets.length === 0) {
+    const canonicalFolder = canonicalFolderFromPath(path);
+    if (canonicalFolder) {
+      return { postsFolder: canonicalFolder };
+    }
+    return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
+  }
+  let best = null;
+  let bestLength = -1;
+  for (const target of targets) {
+    for (const folder of targetCandidateFolders(target)) {
+      if (!folder || !pathMatchesFolder(path, folder))
+        continue;
+      if (folder.length > bestLength) {
+        best = { ...target, postsFolder: folder };
+        bestLength = folder.length;
+      }
+    }
+  }
+  if (best)
+    return best;
+  return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
+}
+function isPostPath(path, settings) {
+  if (!path.endsWith(".md"))
+    return false;
+  return resolveTargetForPath(path, settings) !== null;
+}
+function getEffectiveSettingsForPath(path, settings) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  const target = resolveTargetForPath(path, settings);
+  if (!target)
+    return settings;
+  return {
+    ...settings,
+    repository: (_a = target.repository) != null ? _a : settings.repository,
+    branch: (_b = target.branch) != null ? _b : settings.branch,
+    postsFolder: target.postsFolder || settings.postsFolder,
+    repoPostsPath: (_c = target.repoPostsPath) != null ? _c : settings.repoPostsPath,
+    repoImagesPath: (_d = target.repoImagesPath) != null ? _d : settings.repoImagesPath,
+    postUrlFormat: (_e = target.postUrlFormat) != null ? _e : settings.postUrlFormat,
+    themeFilePath: (_f = target.themeFilePath) != null ? _f : settings.themeFilePath,
+    themeRepoPath: (_g = target.themeRepoPath) != null ? _g : settings.themeRepoPath,
+    blogConfigRepoPath: (_h = target.blogConfigRepoPath) != null ? _h : settings.blogConfigRepoPath,
+    siteUrl: (_i = target.siteUrl) != null ? _i : settings.siteUrl,
+    themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes
+  };
+}
+
 // src/PublishView.tsx
 var VIEW_TYPE_BLOG_PUBLISHER = "blog-publisher-view";
 var PublishView = class extends import_obsidian.ItemView {
@@ -1458,7 +1563,7 @@ var PublishView = class extends import_obsidian.ItemView {
       const file = this.resolveCurrentPanelFile(explicitFile);
       if (!file) {
         G(
-          _("div", { style: "padding:20px;color:#888;font-size:13px;" }, "Open a blog post or _system/_state/blog-config.md to see publishing controls."),
+          _("div", { style: "padding:20px;color:#888;font-size:13px;line-height:1.5;" }, this.emptyStateMessage(explicitFile)),
           container
         );
         return;
@@ -1502,6 +1607,19 @@ var PublishView = class extends import_obsidian.ItemView {
       );
       console.error("Publish panel refresh failed:", error);
     }
+  }
+  /**
+   * A note under `<root>/<Site>/posts/` with no matching target looks identical to
+   * a note that has nothing to do with blogging, so name the missing target instead
+   * of showing the generic prompt.
+   */
+  emptyStateMessage(explicitFile) {
+    const active = explicitFile instanceof import_obsidian.TFile ? explicitFile : this.app.workspace.getActiveFile();
+    const site = active ? siteNameFromPath(active.path) : null;
+    if (site) {
+      return `No blog target configured for "${site}". Add it to blogTargets in _system/_state/blog-config.md to publish these posts.`;
+    }
+    return "Open a blog post or _system/_state/blog-config.md to see publishing controls.";
   }
   isPostFile(file) {
     return this.plugin.isPostPath(file.path);
@@ -2412,104 +2530,6 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
     new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_system/_state/blog-config.md` for per-folder repo/site routing.");
   }
 };
-
-// src/utils/targetRouting.ts
-var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
-var SITE_ROOTS = ["Library/Blogs", "Blogs", "Blog"];
-function normalizeFolderPath(path) {
-  return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-}
-function pathMatchesFolder(path, folder) {
-  const normalizedPath = normalizeFolderPath(path);
-  const normalizedFolder = normalizeFolderPath(folder);
-  if (!normalizedFolder)
-    return false;
-  return normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`);
-}
-function legacyFolders(settings) {
-  const configured = normalizeFolderPath(settings.postsFolder || "");
-  const merged = [configured, ...LEGACY_POSTS_FOLDERS.map(normalizeFolderPath)];
-  return [...new Set(merged.filter(Boolean))];
-}
-function canonicalFolderFromPath(path) {
-  const segments = normalizeFolderPath(path).split("/");
-  for (const root of SITE_ROOTS) {
-    const depth = root.split("/").length;
-    if (segments.slice(0, depth).join("/").toLowerCase() !== root.toLowerCase())
-      continue;
-    const site = segments[depth];
-    const posts = segments[depth + 1];
-    if (!site || String(posts || "").toLowerCase() !== "posts")
-      continue;
-    return `${root}/${site}/posts`;
-  }
-  return null;
-}
-function inferredFoldersFromName(name) {
-  const value = String(name || "").trim();
-  if (!value)
-    return [];
-  return SITE_ROOTS.map((root) => `${root}/${value}/posts`);
-}
-function targetCandidateFolders(target) {
-  const candidates = [
-    normalizeFolderPath(target.postsFolder || ""),
-    ...inferredFoldersFromName(target.name).map(normalizeFolderPath)
-  ].filter(Boolean);
-  return [...new Set(candidates)];
-}
-function resolveTargetForPath(path, settings) {
-  if (!path)
-    return null;
-  const targets = settings.blogTargets || [];
-  if (targets.length === 0) {
-    const canonicalFolder = canonicalFolderFromPath(path);
-    if (canonicalFolder) {
-      return { postsFolder: canonicalFolder };
-    }
-    return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
-  }
-  let best = null;
-  let bestLength = -1;
-  for (const target of targets) {
-    for (const folder of targetCandidateFolders(target)) {
-      if (!folder || !pathMatchesFolder(path, folder))
-        continue;
-      if (folder.length > bestLength) {
-        best = { ...target, postsFolder: folder };
-        bestLength = folder.length;
-      }
-    }
-  }
-  if (best)
-    return best;
-  return legacyFolders(settings).some((folder) => pathMatchesFolder(path, folder)) ? { postsFolder: settings.postsFolder } : null;
-}
-function isPostPath(path, settings) {
-  if (!path.endsWith(".md"))
-    return false;
-  return resolveTargetForPath(path, settings) !== null;
-}
-function getEffectiveSettingsForPath(path, settings) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
-  const target = resolveTargetForPath(path, settings);
-  if (!target)
-    return settings;
-  return {
-    ...settings,
-    repository: (_a = target.repository) != null ? _a : settings.repository,
-    branch: (_b = target.branch) != null ? _b : settings.branch,
-    postsFolder: target.postsFolder || settings.postsFolder,
-    repoPostsPath: (_c = target.repoPostsPath) != null ? _c : settings.repoPostsPath,
-    repoImagesPath: (_d = target.repoImagesPath) != null ? _d : settings.repoImagesPath,
-    postUrlFormat: (_e = target.postUrlFormat) != null ? _e : settings.postUrlFormat,
-    themeFilePath: (_f = target.themeFilePath) != null ? _f : settings.themeFilePath,
-    themeRepoPath: (_g = target.themeRepoPath) != null ? _g : settings.themeRepoPath,
-    blogConfigRepoPath: (_h = target.blogConfigRepoPath) != null ? _h : settings.blogConfigRepoPath,
-    siteUrl: (_i = target.siteUrl) != null ? _i : settings.siteUrl,
-    themes: target.themes && target.themes.length > 0 ? target.themes : settings.themes
-  };
-}
 
 // src/main.ts
 var STATE_CONFIG_PATH = "_system/_state/blog-config.md";

@@ -24,17 +24,30 @@ function legacyFolders(settings: BlogPublisherSettings): string[] {
   return [...new Set(merged.filter(Boolean))];
 }
 
-function canonicalFolderFromPath(path: string): string | null {
+/**
+ * Site name for a path that *looks* like a blog post (`<root>/<Site>/posts/...`),
+ * regardless of whether a target is configured for it. Used to tell "this isn't a
+ * blog post" apart from "this is a blog post with no target".
+ */
+export function siteNameFromPath(path: string): string | null {
+  return sitePostsFolderFromPath(path)?.site ?? null;
+}
+
+function sitePostsFolderFromPath(path: string): { root: string; site: string } | null {
   const segments = normalizeFolderPath(path).split('/');
   for (const root of SITE_ROOTS) {
     const depth = root.split('/').length;
     if (segments.slice(0, depth).join('/').toLowerCase() !== root.toLowerCase()) continue;
     const site = segments[depth];
-    const posts = segments[depth + 1];
-    if (!site || String(posts || '').toLowerCase() !== 'posts') continue;
-    return `${root}/${site}/posts`;
+    if (!site || String(segments[depth + 1] || '').toLowerCase() !== 'posts') continue;
+    return { root, site };
   }
   return null;
+}
+
+function canonicalFolderFromPath(path: string): string | null {
+  const match = sitePostsFolderFromPath(path);
+  return match ? `${match.root}/${match.site}/posts` : null;
 }
 
 function inferredFoldersFromName(name: string | undefined): string[] {
