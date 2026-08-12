@@ -89,7 +89,7 @@ src/
 
 ## Release Canon
 
-- Current canonical release: `v2.0.26`
+- Current canonical release: `v2.0.27`
 - `v2.0.10` was tagged on the wrong commit and is superseded.
 - Keep `CHANGELOG.md` updated for every release.
 
@@ -98,6 +98,7 @@ src/
 - **Obsidian `metadataCache` is async** — it can be stale immediately after `processFrontMatter` writes. Always use `parseYaml` on raw file content (via `vault.read()`) instead of `metadataCache.getFileCache()`.
 - **`publishFile()` and `unpublishFile()` in `main.ts`** write frontmatter after deploy. If status bugs appear, check here FIRST — previous bugs were caused by these methods overwriting the user's chosen status.
 - **Blog site filters by `status === 'publish'`** in all page routes (index, archive, RSS, post pages, redirects). Posts with any other status are excluded from the build.
+- **The vault index skips dot-directories.** `getAbstractFileByPath('.system/config.json')` returns null even when the file exists. Use `vault.adapter.read()` for anything under a dot-folder — that is what broke token hydration in v2.0.26 and earlier.
 - **Post-path config lives in three places** — `_system/_state/blog-config.md` (primary), the vault `data.json` (`postsFolder`, `themeFilePath`, `blogTargetsJson`), and the `SITE_ROOTS` fallbacks in `src/utils/targetRouting.ts`. When they drift (e.g. a vault folder move), `isPostPath()` returns false and the panel silently renders its "Open a blog post…" empty state — no error. Grep all three after any vault reorg.
 - **`obsidian plugin reload id=blog-publisher` does not re-read `data.json`** — the instance keeps stale in-memory settings. To pick up config changes, restart Obsidian or `obsidian eval` `plugin.loadSettings()` followed by `view.refresh()`.
 

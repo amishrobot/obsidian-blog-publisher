@@ -2875,11 +2875,12 @@ theme: ${theme}
     const tokenKey = (this.settings.githubTokenConfigKey || "").trim();
     if (!filePath || !tokenKey)
       return;
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian7.TFile))
-      return;
     try {
-      const content = await this.app.vault.read(file);
+      const content = await this.readSecretsFile(filePath);
+      if (content === null) {
+        console.warn(`Secrets file not found: ${filePath}`);
+        return;
+      }
       const parsed = JSON.parse(content);
       const resolved = parsed[tokenKey];
       if (typeof resolved === "string" && resolved.trim().length > 0) {
@@ -2888,6 +2889,21 @@ theme: ${theme}
     } catch (error) {
       console.warn(`Failed to read GitHub token from ${filePath}:`, error);
     }
+  }
+  /**
+   * The vault index skips dot-directories, so a secrets file at
+   * `.system/config.json` is invisible to getAbstractFileByPath even though it
+   * sits right there on disk. The adapter reads by path and does see it.
+   */
+  async readSecretsFile(filePath) {
+    if (await this.app.vault.adapter.exists(filePath)) {
+      return this.app.vault.adapter.read(filePath);
+    }
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof import_obsidian7.TFile) {
+      return this.app.vault.read(file);
+    }
+    return null;
   }
   async refreshRuntimeSettings() {
     const pluginData = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());

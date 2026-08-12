@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.27 (2026-08-12)
+- Fixed GitHub token hydration from a secrets file inside a dot-directory. The vault index
+  skips dot-directories, so `.system/config.json` was invisible to `getAbstractFileByPath`
+  and every publish failed with "GitHub token not configured" even though the file was
+  present and correct. The adapter, which reads by path, is now tried first.
+
 ## v2.0.26 (2026-08-12)
 - Panel now names the missing target when a note lives under `<root>/<Site>/posts/` but no
   `blogTargets` entry matches, instead of showing the generic "Open a blog post…" prompt.
