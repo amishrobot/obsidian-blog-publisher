@@ -1,5 +1,6 @@
 import { App, TFile, parseYaml } from 'obsidian';
 import { BlogPublisherSettings } from '../models/types';
+import { resolveRelative, scanImageRefs } from '../utils/imageRefs';
 
 export interface CheckResult {
   passed: boolean;
@@ -73,20 +74,33 @@ export class ChecksService {
 
   async checkImages(file: TFile): Promise<CheckResult> {
     const content = await this.app.vault.read(file);
-    const imageRe = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
-    let match;
+    const refs = scanImageRefs(content);
     const missing: string[] = [];
-    while ((match = imageRe.exec(content)) !== null) {
-      const target = match[1].trim();
+
+    for (const target of refs.wikilinks) {
       const ext = target.split('.').pop()?.toLowerCase() || '';
       if (!IMAGE_EXTENSIONS.has(ext)) continue;
-      const resolved = this.app.metadataCache.getFirstLinkpathDest(target, '');
-      if (!resolved) missing.push(target);
+      if (!this.app.metadataCache.getFirstLinkpathDest(target, '')) missing.push(target);
     }
-    if (missing.length > 0) {
-      return { passed: false, message: `Missing: ${missing.slice(0, 3).join(', ')}` };
+
+    // Markdown images and raw <img> tags are published verbatim, so they are only
+    // as good as the path written in the note.
+    for (const raw of refs.relative) {
+      if (!this.app.vault.getAbstractFileByPath(resolveRelative(file.path, raw))) {
+        missing.push(raw);
+      }
     }
-    return { passed: true };
+
+    const problems: string[] = [];
+    if (missing.length > 0) problems.push(`Missing: ${missing.slice(0, 3).join(', ')}`);
+    // A leading `/` resolves from the vault root and shows nothing in Obsidian —
+    // the post looks right on the site and empty where it is actually written.
+    if (refs.absolute.length > 0) {
+      problems.push(
+        `Not visible in Obsidian (use ../../_assets/…): ${refs.absolute.slice(0, 2).join(', ')}`
+      );
+    }
+    return problems.length > 0 ? { passed: false, message: problems.join(' · ') } : { passed: true };
   }
 
   async checkBuild(_file: TFile): Promise<CheckResult> {

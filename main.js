@@ -2173,6 +2173,48 @@ var GitHubService = class {
 
 // src/services/ChecksService.ts
 var import_obsidian4 = require("obsidian");
+
+// src/utils/imageRefs.ts
+var WIKI_RE = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
+var SRC_RE = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)|<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']/gi;
+function isRemote(url) {
+  return /^(https?:)?\/\//i.test(url) || url.startsWith("data:");
+}
+function scanImageRefs(content) {
+  const refs = { wikilinks: [], relative: [], absolute: [] };
+  let match;
+  const wiki = new RegExp(WIKI_RE.source, WIKI_RE.flags);
+  while ((match = wiki.exec(content)) !== null) {
+    refs.wikilinks.push(match[1].trim());
+  }
+  const src = new RegExp(SRC_RE.source, SRC_RE.flags);
+  while ((match = src.exec(content)) !== null) {
+    const raw = (match[1] || match[2] || "").trim();
+    if (!raw || isRemote(raw))
+      continue;
+    (raw.startsWith("/") ? refs.absolute : refs.relative).push(raw);
+  }
+  return refs;
+}
+function resolveRelative(fromPath, url) {
+  let decoded = url.split("#")[0].split("?")[0];
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch (e3) {
+  }
+  const segments = fromPath.split("/").slice(0, -1);
+  for (const part of decoded.split("/")) {
+    if (part === "" || part === ".")
+      continue;
+    if (part === "..")
+      segments.pop();
+    else
+      segments.push(part);
+  }
+  return segments.join("/");
+}
+
+// src/services/ChecksService.ts
 var IMAGE_EXTENSIONS2 = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
 var ChecksService = class {
   constructor(app, settings) {
@@ -2232,22 +2274,29 @@ var ChecksService = class {
   async checkImages(file) {
     var _a;
     const content = await this.app.vault.read(file);
-    const imageRe = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
-    let match;
+    const refs = scanImageRefs(content);
     const missing = [];
-    while ((match = imageRe.exec(content)) !== null) {
-      const target = match[1].trim();
+    for (const target of refs.wikilinks) {
       const ext = ((_a = target.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "";
       if (!IMAGE_EXTENSIONS2.has(ext))
         continue;
-      const resolved = this.app.metadataCache.getFirstLinkpathDest(target, "");
-      if (!resolved)
+      if (!this.app.metadataCache.getFirstLinkpathDest(target, ""))
         missing.push(target);
     }
-    if (missing.length > 0) {
-      return { passed: false, message: `Missing: ${missing.slice(0, 3).join(", ")}` };
+    for (const raw of refs.relative) {
+      if (!this.app.vault.getAbstractFileByPath(resolveRelative(file.path, raw))) {
+        missing.push(raw);
+      }
     }
-    return { passed: true };
+    const problems = [];
+    if (missing.length > 0)
+      problems.push(`Missing: ${missing.slice(0, 3).join(", ")}`);
+    if (refs.absolute.length > 0) {
+      problems.push(
+        `Not visible in Obsidian (use ../../_assets/\u2026): ${refs.absolute.slice(0, 2).join(", ")}`
+      );
+    }
+    return problems.length > 0 ? { passed: false, message: problems.join(" \xB7 ") } : { passed: true };
   }
   async checkBuild(_file) {
     return { passed: true };

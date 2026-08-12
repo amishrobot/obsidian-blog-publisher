@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.28 (2026-08-12)
+- The Images pre-publish check now inspects markdown images and raw img tags, not just
+  wikilinks. It resolves note-relative sources against the note, and fails on vault-root
+  sources, which render on the site but show nothing in Obsidian.
+
 ## v2.0.27 (2026-08-12)
 - Fixed GitHub token hydration from a secrets file inside a dot-directory. The vault index
   skips dot-directories, so `.system/config.json` was invisible to `getAbstractFileByPath`
