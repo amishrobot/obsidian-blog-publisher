@@ -22,10 +22,168 @@ __export(main_exports, {
   default: () => BlogPublisherPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian7 = require("obsidian");
+var import_obsidian9 = require("obsidian");
+
+// src/NewPostModal.ts
+var import_obsidian = require("obsidian");
+
+// src/utils/newPost.ts
+function slugifyTitle(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+function sanitizeFileName(value) {
+  return String(value || "").replace(/[\\/:*?"<>|#^[\]]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").trim();
+}
+function localDateStamp(now = /* @__PURE__ */ new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+function newPostFolder(postsFolder, urlFormat, date) {
+  const base = String(postsFolder || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!base)
+    return "";
+  return urlFormat === "posts-slug" ? base : `${base}/${date.slice(0, 4)}`;
+}
+function buildNewPostContent(fields, date) {
+  const quote = (value) => `"${String(value).replace(/"/g, '\\"')}"`;
+  const lines = [
+    "---",
+    `title: ${quote(fields.title)}`,
+    `date: ${date}`,
+    `slug: ${quote(fields.slug)}`,
+    // Draft is the safe default: the file can be pushed to GitHub while the
+    // site keeps filtering it out until the status is flipped in the panel.
+    "status: draft",
+    `type: ${fields.type}`
+  ];
+  if (fields.type === "link" && fields.linkUrl) {
+    lines.push("link:", `  url: ${quote(fields.linkUrl)}`);
+  }
+  lines.push("---", "", "");
+  return lines.join("\n");
+}
+
+// src/NewPostModal.ts
+var NewPostModal = class extends import_obsidian.Modal {
+  constructor(app, targets, onSubmit, presetTargetIndex = 0) {
+    super(app);
+    this.title = "";
+    this.slug = "";
+    this.slugEdited = false;
+    this.type = "post";
+    this.linkUrl = "";
+    this.targetIndex = 0;
+    this.slugInput = null;
+    this.linkRow = null;
+    this.submitButton = null;
+    this.targets = targets;
+    this.onSubmit = onSubmit;
+    this.targetIndex = presetTargetIndex >= 0 ? presetTargetIndex : 0;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h3", { text: "New blog post" });
+    let titleInput = null;
+    new import_obsidian.Setting(contentEl).setName("Title").addText((text) => {
+      titleInput = text.inputEl;
+      text.setPlaceholder("Ordinary Abundance").onChange((value) => {
+        this.title = value;
+        if (!this.slugEdited) {
+          this.slug = slugifyTitle(value);
+          if (this.slugInput)
+            this.slugInput.value = this.slug;
+        }
+        this.syncSubmitState();
+      });
+      text.inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          void this.submit();
+        }
+      });
+    });
+    if (this.targets.length > 1) {
+      new import_obsidian.Setting(contentEl).setName("Blog").addDropdown((dropdown) => {
+        this.targets.forEach((target, index) => {
+          dropdown.addOption(String(index), target.name || target.postsFolder || `Target ${index + 1}`);
+        });
+        dropdown.setValue(String(this.targetIndex));
+        dropdown.onChange((value) => {
+          this.targetIndex = Number(value) || 0;
+        });
+      });
+    }
+    new import_obsidian.Setting(contentEl).setName("Type").addDropdown((dropdown) => {
+      dropdown.addOption("post", "Post");
+      dropdown.addOption("link", "Link");
+      dropdown.setValue(this.type);
+      dropdown.onChange((value) => {
+        this.type = value === "link" ? "link" : "post";
+        if (this.linkRow)
+          this.linkRow.style.display = this.type === "link" ? "" : "none";
+        this.syncSubmitState();
+      });
+    });
+    const linkSetting = new import_obsidian.Setting(contentEl).setName("Link URL").setDesc("The page this post is about.").addText((text) => {
+      text.setPlaceholder("https://example.com/article").onChange((value) => {
+        this.linkUrl = value.trim();
+        this.syncSubmitState();
+      });
+      text.inputEl.style.width = "100%";
+    });
+    this.linkRow = linkSetting.settingEl;
+    this.linkRow.style.display = "none";
+    new import_obsidian.Setting(contentEl).setName("Slug").setDesc("URL segment. Derived from the title until you edit it.").addText((text) => {
+      this.slugInput = text.inputEl;
+      text.setPlaceholder("ordinary-abundance").onChange((value) => {
+        this.slugEdited = true;
+        this.slug = value.trim();
+        this.syncSubmitState();
+      });
+    });
+    new import_obsidian.Setting(contentEl).addButton((button) => {
+      this.submitButton = button.buttonEl;
+      button.setButtonText("Create").setCta().onClick(() => {
+        void this.submit();
+      });
+    });
+    this.syncSubmitState();
+    window.setTimeout(() => titleInput == null ? void 0 : titleInput.focus(), 0);
+  }
+  isValid() {
+    if (!this.title.trim())
+      return false;
+    if (!slugifyTitle(this.slug))
+      return false;
+    if (this.type === "link" && !this.linkUrl)
+      return false;
+    return true;
+  }
+  syncSubmitState() {
+    if (this.submitButton)
+      this.submitButton.disabled = !this.isValid();
+  }
+  async submit() {
+    if (!this.isValid())
+      return;
+    const request = {
+      title: this.title.trim(),
+      slug: slugifyTitle(this.slug),
+      type: this.type,
+      linkUrl: this.linkUrl,
+      target: this.targets[this.targetIndex] || this.targets[0] || {}
+    };
+    this.close();
+    await this.onSubmit(request);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 
 // src/PublishView.tsx
-var import_obsidian = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // node_modules/preact/dist/preact.module.js
 var n;
@@ -988,6 +1146,108 @@ function SlugEditor({ slug, onChange, t: t3 }) {
   );
 }
 
+// src/components/LinkSection.tsx
+function fieldStyle(t3, multiline = false) {
+  return {
+    width: "100%",
+    padding: "5px 8px",
+    borderRadius: 4,
+    border: `1px solid ${t3.border}`,
+    background: t3.inputBg,
+    color: t3.text,
+    fontSize: 12,
+    outline: "none",
+    boxSizing: "border-box",
+    resize: multiline ? "vertical" : "none",
+    minHeight: multiline ? 54 : void 0,
+    fontFamily: "inherit",
+    lineHeight: 1.45,
+    transition: "border-color 0.25s ease"
+  };
+}
+function LinkSection({ link, postTitle, onChange, onFetch, t: t3 }) {
+  const [url, setUrl] = d2((link == null ? void 0 : link.url) || "");
+  const [title, setTitle] = d2((link == null ? void 0 : link.title) || "");
+  const [description, setDescription] = d2((link == null ? void 0 : link.description) || "");
+  const [fetching, setFetching] = d2(false);
+  const [error, setError] = d2(null);
+  const [fetchHovered, fetchHoverHandlers] = useHover();
+  y2(() => setUrl((link == null ? void 0 : link.url) || ""), [link == null ? void 0 : link.url]);
+  y2(() => setTitle((link == null ? void 0 : link.title) || ""), [link == null ? void 0 : link.title]);
+  y2(() => setDescription((link == null ? void 0 : link.description) || ""), [link == null ? void 0 : link.description]);
+  const normalizedPostTitle = postTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalizedLinkTitle = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const titleIsRedundant = Boolean(title) && normalizedLinkTitle === normalizedPostTitle;
+  const runFetch = async () => {
+    if (!url.trim() || fetching)
+      return;
+    setFetching(true);
+    setError(null);
+    try {
+      await onFetch(url.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFetching(false);
+    }
+  };
+  const label = (text) => /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, marginTop: 10 } }, text);
+  return /* @__PURE__ */ _(k, null, label("URL"), /* @__PURE__ */ _("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ _(
+    "input",
+    {
+      value: url,
+      placeholder: "https://example.com/article",
+      onInput: (e3) => setUrl(e3.target.value),
+      onBlur: () => onChange({ url: url.trim() }),
+      onKeyDown: (e3) => {
+        if (e3.key === "Enter")
+          void runFetch();
+      },
+      style: { ...fieldStyle(t3), fontFamily: "'SF Mono', monospace", fontSize: 11.5 }
+    }
+  ), /* @__PURE__ */ _(
+    "button",
+    {
+      ...fetchHoverHandlers,
+      onClick: () => void runFetch(),
+      disabled: !url.trim() || fetching,
+      title: "Read the page's own title, description and image",
+      style: {
+        flexShrink: 0,
+        padding: "5px 10px",
+        borderRadius: 4,
+        border: `1px solid ${t3.border}`,
+        background: fetchHovered && url.trim() && !fetching ? t3.accent : t3.inputBg,
+        color: fetchHovered && url.trim() && !fetching ? t3.bg : t3.text,
+        fontSize: 11.5,
+        cursor: url.trim() && !fetching ? "pointer" : "default",
+        opacity: url.trim() ? 1 : 0.5,
+        whiteSpace: "nowrap",
+        transition: "all 0.2s ease"
+      }
+    },
+    fetching ? "Fetching\u2026" : "Fetch"
+  )), error && /* @__PURE__ */ _("div", { style: { color: "#e06c75", fontSize: 11.5, marginTop: 6, lineHeight: 1.45 } }, error), label("Title"), /* @__PURE__ */ _(
+    "input",
+    {
+      value: title,
+      placeholder: "The page's own title",
+      onInput: (e3) => setTitle(e3.target.value),
+      onBlur: () => onChange({ title: title.trim() }),
+      style: fieldStyle(t3)
+    }
+  ), titleIsRedundant && /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 11, marginTop: 4, lineHeight: 1.45 } }, "Same as the post title, so the card will hide it and show the domain instead."), label("Description"), /* @__PURE__ */ _(
+    "textarea",
+    {
+      value: description,
+      placeholder: "The page's own summary, or an excerpt you'd rather feature",
+      onInput: (e3) => setDescription(e3.target.value),
+      onBlur: () => onChange({ description: description.trim() }),
+      style: fieldStyle(t3, true)
+    }
+  ), label("Card image"), /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: (link == null ? void 0 : link.image) ? t3.text : t3.textMuted, lineHeight: 1.5 } }, (link == null ? void 0 : link.image) ? /* @__PURE__ */ _("span", { style: { fontFamily: "'SF Mono', monospace" } }, link.image) : "None. Fetch pulls the page\u2019s share image in automatically."), (link == null ? void 0 : link.captured) && /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textMuted, marginTop: 8 } }, "Captured ", link.captured));
+}
+
 // src/components/UrlPreview.tsx
 function UrlPreview({ url, t: t3 }) {
   const [copied, setCopied] = d2(false);
@@ -1256,6 +1516,8 @@ function PublishPanel({
   onThemeChange,
   onSlugChange,
   onTagsChange,
+  onLinkChange,
+  onFetchLinkMetadata,
   onPublish,
   onPublishConfig,
   onRunChecks,
@@ -1400,7 +1662,16 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 }))), /* @__PURE__ */ _("div", { style: { marginTop: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handlePublishConfig, t: t3, disabled: publishingConfig }, publishingConfig ? "Publishing config..." : "Publish config"))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
+  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 }))), /* @__PURE__ */ _("div", { style: { marginTop: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handlePublishConfig, t: t3, disabled: publishingConfig }, publishingConfig ? "Publishing config..." : "Publish config"))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), post.type === "link" && /* @__PURE__ */ _(k, null, /* @__PURE__ */ _(AnimatedSection, { title: "Link", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(
+    LinkSection,
+    {
+      link: post.link,
+      postTitle: post.title,
+      onChange: onLinkChange,
+      onFetch: onFetchLinkMetadata,
+      t: t3
+    }
+  )), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } })), /* @__PURE__ */ _(AnimatedSection, { title: "Tags", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(TagInput, { tags: post.tags, onChange: onTagsChange, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "URL Preview", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(UrlPreview, { url: siteUrl, t: t3 })), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Changes", collapsible: true, defaultOpen: true, t: t3, badge: hasChanges ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#e5c07b", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, changes.length) : null }, hasChanges ? /* @__PURE__ */ _("div", { style: { padding: "4px 0" } }, changes.map((c3, i3) => /* @__PURE__ */ _(ChangeRow, { key: i3, change: c3, t: t3 }))) : /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: t3.textFaint, padding: "4px 0", fontStyle: "italic" } }, "No changes"))), /* @__PURE__ */ _("div", { style: { flexShrink: 0 } }, /* @__PURE__ */ _("div", { style: { padding: "10px 14px", borderTop: `1px solid ${t3.border}`, transition: "border-color 0.4s ease" } }, /* @__PURE__ */ _(
     ActionButton,
     {
       post,
@@ -1427,6 +1698,169 @@ function PublishPanel({
     animation: toastExiting ? "slideOut 0.2s ease forwards" : "slideUp 0.2s ease"
   } }, toast.msg));
 }
+
+// src/services/LinkMetadataService.ts
+var import_obsidian2 = require("obsidian");
+
+// src/utils/linkMetadata.ts
+function decodeEntities(value) {
+  const named = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    nbsp: " ",
+    "#39": "'",
+    "#x27": "'"
+  };
+  return value.replace(/&#(\d+);/g, (_2, code) => String.fromCharCode(Number(code))).replace(/&#x([0-9a-f]+);/gi, (_2, code) => String.fromCharCode(parseInt(code, 16))).replace(/&([a-z]+|#x?\d+);/gi, (match, name) => {
+    var _a;
+    return (_a = named[String(name).toLowerCase()]) != null ? _a : match;
+  });
+}
+function metaContent(html, attr, key) {
+  const tags = html.match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of tags) {
+    const keyMatch = tag.match(new RegExp(`\\b${attr}\\s*=\\s*["']([^"']+)["']`, "i"));
+    if (!keyMatch || keyMatch[1].toLowerCase() !== key.toLowerCase())
+      continue;
+    const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i);
+    if (content == null ? void 0 : content[1])
+      return decodeEntities(content[1]).trim();
+  }
+  return void 0;
+}
+function absolutize(value, pageUrl) {
+  if (!value)
+    return void 0;
+  try {
+    return new URL(value, pageUrl).href;
+  } catch (e3) {
+    return void 0;
+  }
+}
+function parseLinkMetadata(html, pageUrl) {
+  const source = String(html || "");
+  const title = metaContent(source, "property", "og:title") || metaContent(source, "name", "twitter:title") || (() => {
+    const tag = source.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    return (tag == null ? void 0 : tag[1]) ? decodeEntities(tag[1]).replace(/\s+/g, " ").trim() : void 0;
+  })();
+  const description = metaContent(source, "property", "og:description") || metaContent(source, "name", "twitter:description") || metaContent(source, "name", "description");
+  const image = metaContent(source, "property", "og:image") || metaContent(source, "name", "twitter:image") || metaContent(source, "property", "og:image:url");
+  return {
+    title: title || void 0,
+    description: description || void 0,
+    image: absolutize(image, pageUrl)
+  };
+}
+
+// src/services/LinkMetadataService.ts
+var IMAGE_EXTENSIONS = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif"]);
+var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+var LinkMetadataService = class {
+  constructor(app) {
+    this.app = app;
+  }
+  async fetch(url, slug, assetFolder) {
+    const target = this.normalizeUrl(url);
+    const response = await (0, import_obsidian2.requestUrl)({
+      url: target,
+      method: "GET",
+      throw: false,
+      headers: {
+        // Some sites serve a stub to unknown agents; ask like a browser.
+        Accept: "text/html,application/xhtml+xml"
+      }
+    });
+    if (response.status >= 400) {
+      throw new Error(`${target} returned ${response.status}`);
+    }
+    const parsed = parseLinkMetadata(response.text || "", target);
+    const meta = {
+      url: target,
+      title: parsed.title,
+      description: parsed.description,
+      captured: this.today()
+    };
+    if (!parsed.image)
+      return meta;
+    try {
+      const wikilink = await this.downloadImage(parsed.image, slug, assetFolder);
+      if (wikilink)
+        meta.image = wikilink;
+    } catch (error) {
+      meta.imageWarning = error instanceof Error ? error.message : String(error);
+    }
+    return meta;
+  }
+  /**
+   * Stores the card image in the vault beside the post's other assets and
+   * returns a wikilink to it, so publishing uploads it through the existing
+   * image pipeline rather than a second, parallel one.
+   */
+  async downloadImage(imageUrl, slug, assetFolder) {
+    var _a;
+    const response = await (0, import_obsidian2.requestUrl)({ url: imageUrl, method: "GET", throw: false });
+    if (response.status >= 400)
+      throw new Error(`image returned ${response.status}`);
+    const bytes = response.arrayBuffer;
+    if (!bytes || bytes.byteLength === 0)
+      throw new Error("image was empty");
+    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error(`image is ${Math.round(bytes.byteLength / 1024 / 1024)}MB, over the 8MB limit`);
+    }
+    const ext = this.extensionFor(imageUrl, (_a = response.headers) == null ? void 0 : _a["content-type"]);
+    if (!ext)
+      throw new Error("image was not a recognised format");
+    await this.ensureFolder(assetFolder);
+    const filename = `${slug}-card.${ext}`;
+    const path = `${assetFolder}/${filename}`;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian2.TFile) {
+      await this.app.vault.modifyBinary(existing, bytes);
+    } else {
+      await this.app.vault.createBinary(path, bytes);
+    }
+    return `[[${filename}]]`;
+  }
+  extensionFor(url, contentType) {
+    var _a;
+    const fromType = String(contentType || "").split(";")[0].trim().replace(/^image\//, "").replace("jpeg", "jpg").replace("svg+xml", "svg");
+    if (IMAGE_EXTENSIONS.has(fromType))
+      return fromType === "jpeg" ? "jpg" : fromType;
+    const fromUrl = ((_a = url.split("?")[0].split("#")[0].split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "";
+    if (IMAGE_EXTENSIONS.has(fromUrl))
+      return fromUrl === "jpeg" ? "jpg" : fromUrl;
+    return null;
+  }
+  normalizeUrl(url) {
+    const trimmed = String(url || "").trim();
+    if (!trimmed)
+      throw new Error("No URL to fetch");
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  }
+  today() {
+    const now = /* @__PURE__ */ new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  async ensureFolder(folder) {
+    const parts = folder.split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (this.app.vault.getAbstractFileByPath(current))
+        continue;
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        if (!String(error).toLowerCase().includes("already exists"))
+          throw error;
+      }
+    }
+  }
+};
 
 // src/utils/targetRouting.ts
 var LEGACY_POSTS_FOLDERS = ["Blog/posts", "Personal/Blog/posts"];
@@ -1535,7 +1969,7 @@ function getEffectiveSettingsForPath(path, settings) {
 
 // src/PublishView.tsx
 var VIEW_TYPE_BLOG_PUBLISHER = "blog-publisher-view";
-var PublishView = class extends import_obsidian.ItemView {
+var PublishView = class extends import_obsidian3.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.savedStates = /* @__PURE__ */ new Map();
@@ -1592,6 +2026,8 @@ var PublishView = class extends import_obsidian.ItemView {
           onThemeChange: (theme) => this.handleThemeChange(file, theme),
           onSlugChange: (slug) => this.handleSlugChange(file, slug),
           onTagsChange: (tags) => this.handleTagsChange(file, tags),
+          onLinkChange: (patch) => this.handleLinkChange(file, patch),
+          onFetchLinkMetadata: (url) => this.handleFetchLinkMetadata(file, url),
           onPublish: () => this.handlePublish(file),
           onPublishConfig: () => this.handlePublishConfig(file),
           onRunChecks: () => this.handleRunChecks(file),
@@ -1614,7 +2050,7 @@ var PublishView = class extends import_obsidian.ItemView {
    * of showing the generic prompt.
    */
   emptyStateMessage(explicitFile) {
-    const active = explicitFile instanceof import_obsidian.TFile ? explicitFile : this.app.workspace.getActiveFile();
+    const active = explicitFile instanceof import_obsidian3.TFile ? explicitFile : this.app.workspace.getActiveFile();
     const site = active ? siteNameFromPath(active.path) : null;
     if (site) {
       return `No blog target configured for "${site}". Add it to blogTargets in _system/_state/blog-config.md to publish these posts.`;
@@ -1630,11 +2066,11 @@ var PublishView = class extends import_obsidian.ItemView {
   resolveCurrentPanelFile(explicitFile) {
     if (explicitFile === null)
       return null;
-    if (explicitFile instanceof import_obsidian.TFile) {
+    if (explicitFile instanceof import_obsidian3.TFile) {
       return this.isPostFile(explicitFile) || this.isConfigFile(explicitFile) ? explicitFile : null;
     }
     const active = this.app.workspace.getActiveFile();
-    if (active instanceof import_obsidian.TFile && (this.isPostFile(active) || this.isConfigFile(active))) {
+    if (active instanceof import_obsidian3.TFile && (this.isPostFile(active) || this.isConfigFile(active))) {
       return active;
     }
     return null;
@@ -1676,7 +2112,7 @@ var PublishView = class extends import_obsidian.ItemView {
   async buildPostState(file) {
     const content = await this.app.vault.read(file);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    const fm = fmMatch ? (0, import_obsidian.parseYaml)(fmMatch[1]) || {} : {};
+    const fm = fmMatch ? (0, import_obsidian3.parseYaml)(fmMatch[1]) || {} : {};
     const body = fmMatch ? content.slice(fmMatch[0].length) : content;
     const wordCount = body.split(/\s+/).filter((w3) => w3.length > 0).length;
     return {
@@ -1686,6 +2122,7 @@ var PublishView = class extends import_obsidian.ItemView {
       status: String(fm.status || "draft"),
       type: String(fm.type || "post"),
       tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
+      link: fm.link && typeof fm.link === "object" ? fm.link : null,
       wordCount,
       lastModified: new Date(file.stat.mtime).toISOString(),
       publishedHash: String(fm.publishedHash || ""),
@@ -1702,7 +2139,7 @@ var PublishView = class extends import_obsidian.ItemView {
   async handleThemeChange(file, theme) {
     const effectiveSettings = this.plugin.getEffectiveSettingsForPath(file.path);
     const themeFile = this.app.vault.getAbstractFileByPath(effectiveSettings.themeFilePath);
-    if (themeFile instanceof import_obsidian.TFile) {
+    if (themeFile instanceof import_obsidian3.TFile) {
       await this.app.vault.modify(themeFile, `---
 theme: ${theme}
 ---
@@ -1721,11 +2158,11 @@ theme: ${theme}
   async getCurrentTheme(themeFilePath, themes) {
     var _a;
     const themeFile = this.app.vault.getAbstractFileByPath(themeFilePath);
-    if (!(themeFile instanceof import_obsidian.TFile))
+    if (!(themeFile instanceof import_obsidian3.TFile))
       return themes[0] || "classic";
     const content = await this.app.vault.read(themeFile);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    const fm = fmMatch ? (0, import_obsidian.parseYaml)(fmMatch[1]) || {} : {};
+    const fm = fmMatch ? (0, import_obsidian3.parseYaml)(fmMatch[1]) || {} : {};
     const fromFm = String(fm.theme || "").trim().toLowerCase();
     if (fromFm)
       return fromFm;
@@ -1757,6 +2194,38 @@ theme: ${theme}
     });
     await this.refresh();
   }
+  /** Merges a partial edit into the `link:` block, dropping emptied fields. */
+  async handleLinkChange(file, patch) {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const current = fm.link && typeof fm.link === "object" ? { ...fm.link } : {};
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === void 0 || value === "")
+          delete current[key];
+        else
+          current[key] = value;
+      }
+      if (Object.keys(current).length > 0)
+        fm.link = current;
+      else
+        delete fm.link;
+    });
+    await this.refresh();
+  }
+  async handleFetchLinkMetadata(file, url) {
+    const state = await this.buildPostState(file);
+    const slug = state.slug || this.app.metadataCache.fileToLinktext(file, "");
+    const settings = this.plugin.getEffectiveSettingsForPath(file.path);
+    const blogRoot = String(settings.postsFolder || "").replace(/\/posts\/?$/, "");
+    const year = String(state.date || "").slice(0, 4) || String((/* @__PURE__ */ new Date()).getFullYear());
+    const assetFolder = `${blogRoot}/_assets/images/${year}/${slug}`;
+    const service = new LinkMetadataService(this.app);
+    const fetched = await service.fetch(url, slug, assetFolder);
+    const { imageWarning, ...meta } = fetched;
+    await this.handleLinkChange(file, meta);
+    if (imageWarning) {
+      throw new Error(`Metadata captured, but the image was skipped: ${imageWarning}`);
+    }
+  }
   async handlePublish(file) {
     await this.plugin.publishFile(file);
     const newState = await this.buildPostState(file);
@@ -1779,8 +2248,8 @@ theme: ${theme}
 };
 
 // src/services/PostService.ts
-var import_obsidian2 = require("obsidian");
-var IMAGE_EXTENSIONS = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
+var import_obsidian4 = require("obsidian");
+var IMAGE_EXTENSIONS2 = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
 var PostService = class {
   constructor(app, settings) {
     this.app = app;
@@ -1789,7 +2258,7 @@ var PostService = class {
   async buildPostData(file) {
     const content = await this.app.vault.read(file);
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    const fm = fmMatch ? (0, import_obsidian2.parseYaml)(fmMatch[1]) || {} : {};
+    const fm = fmMatch ? (0, import_obsidian4.parseYaml)(fmMatch[1]) || {} : {};
     if (!fm.date)
       throw new Error("Missing required frontmatter: date");
     if (!fm.slug)
@@ -1804,6 +2273,9 @@ var PostService = class {
     const year = yearMatch[1];
     const urlFormat = this.resolveUrlFormat();
     const images = await this.resolveImages(content, year, slug, urlFormat);
+    const cardImage = this.resolveLinkCardImage(fm, year, slug, urlFormat, images);
+    if (cardImage)
+      images.push(cardImage);
     const withTargetFrontmatter = this.rewriteFrontmatterForTarget(content, fm, date, slug, urlFormat);
     const transformedMarkdown = this.rewriteImageLinks(withTargetFrontmatter, images, year, slug, urlFormat);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
@@ -1832,7 +2304,7 @@ var PostService = class {
     while ((match = re.exec(content)) !== null) {
       const linkTarget = match[1].trim();
       const ext = ((_a = linkTarget.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "";
-      if (!IMAGE_EXTENSIONS.has(ext))
+      if (!IMAGE_EXTENSIONS2.has(ext))
         continue;
       const resolved = this.app.metadataCache.getFirstLinkpathDest(linkTarget, "");
       if (!resolved) {
@@ -1858,10 +2330,44 @@ var PostService = class {
     }
     return images;
   }
+  /**
+   * Resolves `link.image` when it holds a vault wikilink. An already-absolute
+   * path (`/_assets/...`) is left alone — those were written by hand before
+   * capture existed, and the file is already in the repo.
+   */
+  resolveLinkCardImage(fm, year, slug, urlFormat, existing) {
+    const link = fm.link;
+    const raw = String((link == null ? void 0 : link.image) || "").trim();
+    if (!raw)
+      return null;
+    const wikilink = raw.match(/^\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]$/);
+    if (!wikilink)
+      return null;
+    const target = wikilink[1].trim();
+    const resolved = this.app.metadataCache.getFirstLinkpathDest(target, "");
+    if (!resolved)
+      throw new Error(`Link card image not found in vault: ${target}`);
+    const filename = this.sanitizeFilename(resolved.name);
+    const duplicate = existing.find((image) => image.vaultPath === resolved.path);
+    if (duplicate)
+      return null;
+    return {
+      vaultPath: resolved.path,
+      filename,
+      repoPath: urlFormat === "posts-slug" ? `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${slug}/${filename}` : `${this.normalizeRepoPath(this.settings.repoImagesPath || "public/_assets/images")}/${year}/${slug}/${filename}`,
+      originalWikilink: raw
+    };
+  }
   rewriteImageLinks(content, images, year, slug, urlFormat) {
     var _a;
     let result = content;
     for (const img of images) {
+      if (!img.originalWikilink.startsWith("!")) {
+        const encoded = encodeURIComponent(img.filename);
+        const path = urlFormat === "posts-slug" ? `/_assets/images/${slug}/${encoded}` : `/_assets/images/${year}/${slug}/${encoded}`;
+        result = result.replaceAll(img.originalWikilink, path);
+        continue;
+      }
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = ((_a = altMatch == null ? void 0 : altMatch[2]) == null ? void 0 : _a.trim()) || "";
       const encodedFilename = encodeURIComponent(img.filename);
@@ -1884,7 +2390,7 @@ var PostService = class {
     if (typeof next.status === "string" && next.draft === void 0) {
       next.draft = next.status !== "publish";
     }
-    const yaml = (0, import_obsidian2.stringifyYaml)(next).trim();
+    const yaml = (0, import_obsidian4.stringifyYaml)(next).trim();
     return content.replace(/^---\r?\n[\s\S]*?\r?\n---/, `---
 ${yaml}
 ---`);
@@ -1914,7 +2420,7 @@ ${yaml}
     const imageHashes = [];
     for (const img of images) {
       const file = this.app.vault.getAbstractFileByPath(img.vaultPath);
-      if (file instanceof import_obsidian2.TFile) {
+      if (file instanceof import_obsidian4.TFile) {
         const data = await this.app.vault.readBinary(file);
         const hash = await this.hashArrayBuffer(data);
         imageHashes.push(`${img.filename}:${hash}`);
@@ -1937,7 +2443,7 @@ ${yaml}
 };
 
 // src/services/GitHubService.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var GitHubService = class {
   constructor(app, settings) {
     this.app = app;
@@ -2052,7 +2558,7 @@ var GitHubService = class {
     });
     for (const img of postData.images) {
       const file = this.app.vault.getAbstractFileByPath(img.vaultPath);
-      if (!(file instanceof import_obsidian3.TFile)) {
+      if (!(file instanceof import_obsidian5.TFile)) {
         throw new Error(`Image file not found: ${img.vaultPath}`);
       }
       const binary = await this.app.vault.readBinary(file);
@@ -2126,7 +2632,7 @@ var GitHubService = class {
     var _a, _b, _c;
     const url = `https://api.github.com${path}`;
     try {
-      const resp = await (0, import_obsidian3.requestUrl)({
+      const resp = await (0, import_obsidian5.requestUrl)({
         url,
         method,
         headers: this.headers(),
@@ -2172,7 +2678,7 @@ var GitHubService = class {
 };
 
 // src/services/ChecksService.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/utils/imageRefs.ts
 var WIKI_RE = /!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g;
@@ -2215,24 +2721,22 @@ function resolveRelative(fromPath, url) {
 }
 
 // src/services/ChecksService.ts
-var IMAGE_EXTENSIONS2 = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
+var IMAGE_EXTENSIONS3 = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "bmp"]);
 var ChecksService = class {
   constructor(app, settings) {
     this.app = app;
     this.settings = settings;
   }
   async checkFrontmatter(file) {
+    var _a, _b;
     const fm = await this.parseFrontmatter(file);
-    if (!fm) {
-      return this.slugify(file.basename) ? { passed: true } : { passed: false, message: "No frontmatter found" };
-    }
+    if (!fm)
+      return { passed: false, message: "No frontmatter found" };
     const missing = [];
-    const title = String(fm.title || "").trim();
-    if (!title) {
-    }
-    const slug = String(fm.slug || "").trim() || this.slugify(file.basename);
-    if (!slug)
+    if (!String((_a = fm.slug) != null ? _a : "").trim())
       missing.push("slug");
+    if (!String((_b = fm.date) != null ? _b : "").trim())
+      missing.push("date");
     if (missing.length > 0) {
       return { passed: false, message: `Missing: ${missing.join(", ")}` };
     }
@@ -2260,7 +2764,7 @@ var ChecksService = class {
     while ((match = linkRe.exec(content)) !== null) {
       const target = match[1].trim();
       const ext = ((_a = target.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "";
-      if (IMAGE_EXTENSIONS2.has(ext))
+      if (IMAGE_EXTENSIONS3.has(ext))
         continue;
       const resolved = this.app.metadataCache.getFirstLinkpathDest(target, file.path);
       if (!resolved)
@@ -2278,7 +2782,7 @@ var ChecksService = class {
     const missing = [];
     for (const target of refs.wikilinks) {
       const ext = ((_a = target.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "";
-      if (!IMAGE_EXTENSIONS2.has(ext))
+      if (!IMAGE_EXTENSIONS3.has(ext))
         continue;
       if (!this.app.metadataCache.getFirstLinkpathDest(target, ""))
         missing.push(target);
@@ -2315,7 +2819,7 @@ var ChecksService = class {
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!fmMatch)
       return null;
-    const parsed = (0, import_obsidian4.parseYaml)(fmMatch[1]);
+    const parsed = (0, import_obsidian6.parseYaml)(fmMatch[1]);
     if (!parsed || typeof parsed !== "object")
       return null;
     return parsed;
@@ -2326,7 +2830,7 @@ var ChecksService = class {
 };
 
 // src/services/ConfigService.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var STATE_FILE_PATH = "_system/_state/blog-config.md";
 var ConfigService = class {
   constructor(app) {
@@ -2334,7 +2838,7 @@ var ConfigService = class {
   }
   async loadFromStateFile() {
     const file = this.app.vault.getAbstractFileByPath(STATE_FILE_PATH);
-    if (!(file instanceof import_obsidian5.TFile))
+    if (!(file instanceof import_obsidian7.TFile))
       return null;
     const content = await this.app.vault.read(file);
     return this.parseStateFile(content);
@@ -2344,7 +2848,7 @@ var ConfigService = class {
     const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
     let parsed;
     try {
-      parsed = (0, import_obsidian5.parseYaml)(body);
+      parsed = (0, import_obsidian7.parseYaml)(body);
     } catch (e3) {
       return this.parseLineBased(content);
     }
@@ -2477,8 +2981,8 @@ var ConfigService = class {
 };
 
 // src/SettingsTab.ts
-var import_obsidian6 = require("obsidian");
-var SettingsTab = class extends import_obsidian6.PluginSettingTab {
+var import_obsidian8 = require("obsidian");
+var SettingsTab = class extends import_obsidian8.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -2486,103 +2990,103 @@ var SettingsTab = class extends import_obsidian6.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian6.Setting(containerEl).setName("GitHub token").setDesc("Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).").addText(
+    new import_obsidian8.Setting(containerEl).setName("GitHub token").setDesc("Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).").addText(
       (text) => text.setPlaceholder("github_pat_...").setValue(this.plugin.settings.githubToken).then((t3) => t3.inputEl.type = "password").onChange(async (value) => {
         this.plugin.settings.githubToken = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Secrets file path").setDesc("Vault-local JSON file for secrets (JoshOS pattern: `.system/config.json`).").addText(
+    new import_obsidian8.Setting(containerEl).setName("Secrets file path").setDesc("Vault-local JSON file for secrets (JoshOS pattern: `.system/config.json`).").addText(
       (text) => text.setPlaceholder(".system/config.json").setValue(this.plugin.settings.secretsFilePath || "").onChange(async (value) => {
         this.plugin.settings.secretsFilePath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("GitHub token config key").setDesc("JSON key in the secrets file used to resolve the GitHub token.").addText(
+    new import_obsidian8.Setting(containerEl).setName("GitHub token config key").setDesc("JSON key in the secrets file used to resolve the GitHub token.").addText(
       (text) => text.setPlaceholder("blog_publisher_github_token").setValue(this.plugin.settings.githubTokenConfigKey || "").onChange(async (value) => {
         this.plugin.settings.githubTokenConfigKey = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Repository").setDesc("GitHub repository (owner/repo)").addText(
+    new import_obsidian8.Setting(containerEl).setName("Repository").setDesc("GitHub repository (owner/repo)").addText(
       (text) => text.setPlaceholder("your-org/your-blog-repo").setValue(this.plugin.settings.repository).onChange(async (value) => {
         this.plugin.settings.repository = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Branch").setDesc("Target branch for commits").addText(
+    new import_obsidian8.Setting(containerEl).setName("Branch").setDesc("Target branch for commits").addText(
       (text) => text.setPlaceholder("main").setValue(this.plugin.settings.branch).onChange(async (value) => {
         this.plugin.settings.branch = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
+    new import_obsidian8.Setting(containerEl).setName("Posts folder").setDesc("Vault folder to watch for posts").addText(
       (text) => text.setPlaceholder("Library/Blogs/MySite/posts").setValue(this.plugin.settings.postsFolder).onChange(async (value) => {
         this.plugin.settings.postsFolder = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Repo posts path").setDesc("Path in target repo where markdown posts are committed").addText(
+    new import_obsidian8.Setting(containerEl).setName("Repo posts path").setDesc("Path in target repo where markdown posts are committed").addText(
       (text) => text.setPlaceholder("content/posts").setValue(this.plugin.settings.repoPostsPath).onChange(async (value) => {
         this.plugin.settings.repoPostsPath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Repo images path").setDesc("Path in target repo where published images are committed").addText(
+    new import_obsidian8.Setting(containerEl).setName("Repo images path").setDesc("Path in target repo where published images are committed").addText(
       (text) => text.setPlaceholder("public/_assets/images").setValue(this.plugin.settings.repoImagesPath).onChange(async (value) => {
         this.plugin.settings.repoImagesPath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Post URL format").setDesc("`year-slug` -> /YYYY/slug, `posts-slug` -> /posts/slug").addText(
+    new import_obsidian8.Setting(containerEl).setName("Post URL format").setDesc("`year-slug` -> /YYYY/slug, `posts-slug` -> /posts/slug").addText(
       (text) => text.setPlaceholder("year-slug").setValue(this.plugin.settings.postUrlFormat || "year-slug").onChange(async (value) => {
         this.plugin.settings.postUrlFormat = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_system/_state/blog-config.md` is not present.").addTextArea(
+    new import_obsidian8.Setting(containerEl).setName("Blog targets (JSON)").setDesc("Optional per-folder routing. Used when `_system/_state/blog-config.md` is not present.").addTextArea(
       (text) => text.setPlaceholder('[{"name":"MySite","repository":"your-org/your-blog-repo","siteUrl":"https://mysite.com"}]').setValue(this.plugin.settings.blogTargetsJson || "").onChange(async (value) => {
         this.plugin.settings.blogTargetsJson = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
+    new import_obsidian8.Setting(containerEl).setName("Theme settings file").setDesc("Vault markdown file to publish when theme settings change").addText(
       (text) => text.setPlaceholder("Library/Blogs/MySite/settings/theme.md").setValue(this.plugin.settings.themeFilePath).onChange(async (value) => {
         this.plugin.settings.themeFilePath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Theme repo path").setDesc("Path in GitHub repo for committed theme settings").addText(
+    new import_obsidian8.Setting(containerEl).setName("Theme repo path").setDesc("Path in GitHub repo for committed theme settings").addText(
       (text) => text.setPlaceholder("content/settings/theme.md").setValue(this.plugin.settings.themeRepoPath).onChange(async (value) => {
         this.plugin.settings.themeRepoPath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Blog config repo path").setDesc("Path in GitHub repo for committed blog-config markdown").addText(
+    new import_obsidian8.Setting(containerEl).setName("Blog config repo path").setDesc("Path in GitHub repo for committed blog-config markdown").addText(
       (text) => text.setPlaceholder("content/settings/blog-config.md").setValue(this.plugin.settings.blogConfigRepoPath || "").onChange(async (value) => {
         this.plugin.settings.blogConfigRepoPath = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
+    new import_obsidian8.Setting(containerEl).setName("Site URL").setDesc("Blog URL for success notice links").addText(
       (text) => text.setPlaceholder("https://mysite.com").setValue(this.plugin.settings.siteUrl).onChange(async (value) => {
         this.plugin.settings.siteUrl = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,vaporwave,year2000,soviet)").addText(
+    new import_obsidian8.Setting(containerEl).setName("Themes").setDesc("Comma-separated list of theme IDs (e.g., classic,paper,spruce,midnight,vaporwave,year2000,soviet)").addText(
       (text) => text.setPlaceholder("classic,paper,spruce,midnight,vaporwave,year2000,soviet").setValue(this.plugin.settings.themes.join(",")).onChange(async (value) => {
         this.plugin.settings.themes = value.split(",").map((s3) => s3.trim()).filter((s3) => s3.length > 0);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_system/_state/blog-config.md` for per-folder repo/site routing.");
+    new import_obsidian8.Setting(containerEl).setName("Multi-blog targets").setDesc("Configure `blogTargets` in `_system/_state/blog-config.md` for per-folder repo/site routing.");
   }
 };
 
 // src/main.ts
 var STATE_CONFIG_PATH = "_system/_state/blog-config.md";
-var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
+var BlogPublisherPlugin = class extends import_obsidian9.Plugin {
   constructor() {
     super(...arguments);
     this.writeLock = Promise.resolve();
@@ -2629,13 +3133,18 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
         return true;
       }
     });
+    this.addCommand({
+      id: "new-blog-post",
+      name: "New Blog Post",
+      callback: () => this.promptNewPost()
+    });
     this.registerEvent(
       this.app.workspace.on("file-open", async (file) => {
-        if (file instanceof import_obsidian7.TFile && this.isPostFile(file)) {
+        if (file instanceof import_obsidian9.TFile && this.isPostFile(file)) {
           this.scheduleRefresh(file);
           return;
         }
-        if (file instanceof import_obsidian7.TFile && this.isConfigFile(file)) {
+        if (file instanceof import_obsidian9.TFile && this.isConfigFile(file)) {
           this.scheduleRefresh(file);
           return;
         }
@@ -2655,7 +3164,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     let modifyTimeout = null;
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file) && !this.isConfigFile(file))
+        if (!(file instanceof import_obsidian9.TFile) || !this.isPostFile(file) && !this.isConfigFile(file))
           return;
         if (modifyTimeout)
           clearTimeout(modifyTimeout);
@@ -2664,7 +3173,7 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
     );
     this.registerEvent(
       this.app.vault.on("rename", async (file, oldPath) => {
-        if (!(file instanceof import_obsidian7.TFile) || !this.isPostFile(file))
+        if (!(file instanceof import_obsidian9.TFile) || !this.isPostFile(file))
           return;
         await this.syncTitleAndSlugFromName(file, oldPath);
         this.scheduleRefresh(file);
@@ -2699,6 +3208,77 @@ var BlogPublisherPlugin = class extends import_obsidian7.Plugin {
   }
   slugify(value) {
     return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
+  blogTargets() {
+    const configured = (this.settings.blogTargets || []).filter((target) => target == null ? void 0 : target.postsFolder);
+    if (configured.length > 0)
+      return configured;
+    return this.settings.postsFolder ? [{ name: "Blog", postsFolder: this.settings.postsFolder }] : [];
+  }
+  async promptNewPost() {
+    const targets = this.blogTargets();
+    if (targets.length === 0) {
+      new import_obsidian9.Notice("No blog target configured. Add one to blogTargets in blog-config.md first.");
+      return;
+    }
+    const active = this.app.workspace.getActiveFile();
+    const activeTarget = active ? resolveTargetForPath(active.path, this.settings) : null;
+    const preset = activeTarget ? targets.findIndex((target) => target.postsFolder === activeTarget.postsFolder) : 0;
+    new NewPostModal(this.app, targets, (request) => this.createNewPost(request), preset).open();
+  }
+  /**
+   * Creates the note inside the target's posts folder, because that path — not
+   * the frontmatter — is what makes the publish panel recognise it at all.
+   */
+  async createNewPost(request) {
+    var _a;
+    try {
+      const postsFolder = normalizeFolderPath(request.target.postsFolder || this.settings.postsFolder);
+      if (!postsFolder) {
+        new import_obsidian9.Notice("That blog target has no postsFolder configured.");
+        return;
+      }
+      const date = localDateStamp();
+      const urlFormat = (_a = request.target.postUrlFormat) != null ? _a : this.settings.postUrlFormat;
+      const folder = newPostFolder(postsFolder, urlFormat, date);
+      await this.ensureFolder(folder);
+      const basename = sanitizeFileName(request.title) || request.slug;
+      const file = await this.app.vault.create(
+        this.availablePath(folder, basename),
+        buildNewPostContent(request, date)
+      );
+      await this.app.workspace.getLeaf(false).openFile(file);
+      await this.activateView();
+      new import_obsidian9.Notice(`Created ${file.path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new import_obsidian9.Notice(`Could not create post: ${message}`);
+      console.error("New blog post failed:", error);
+    }
+  }
+  availablePath(folder, basename) {
+    let candidate = `${folder}/${basename}.md`;
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(candidate)) {
+      candidate = `${folder}/${basename} ${counter}.md`;
+      counter += 1;
+    }
+    return candidate;
+  }
+  async ensureFolder(folder) {
+    const parts = (0, import_obsidian9.normalizePath)(folder).split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (this.app.vault.getAbstractFileByPath(current))
+        continue;
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        if (!String(error).toLowerCase().includes("already exists"))
+          throw error;
+      }
+    }
   }
   async syncTitleAndSlugFromName(file, oldPath) {
     var _a;
@@ -2828,7 +3408,7 @@ theme: ${theme}
       await this.refreshRuntimeSettings();
       const resolvedPath = filePath || ((_a = this.app.workspace.getActiveFile()) == null ? void 0 : _a.path) || "";
       const stateFile = this.app.vault.getAbstractFileByPath(STATE_CONFIG_PATH);
-      if (!(stateFile instanceof import_obsidian7.TFile)) {
+      if (!(stateFile instanceof import_obsidian9.TFile)) {
         throw new Error(`Missing state config: ${STATE_CONFIG_PATH}`);
       }
       const content = await this.app.vault.read(stateFile);
@@ -2949,7 +3529,7 @@ theme: ${theme}
       return this.app.vault.adapter.read(filePath);
     }
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (file instanceof import_obsidian7.TFile) {
+    if (file instanceof import_obsidian9.TFile) {
       return this.app.vault.read(file);
     }
     return null;
@@ -3032,7 +3612,7 @@ theme: ${theme}
     const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
     let parsed;
     try {
-      parsed = (0, import_obsidian7.parseYaml)(body);
+      parsed = (0, import_obsidian9.parseYaml)(body);
     } catch (error) {
       throw new Error(`Invalid blog-config format: ${(error == null ? void 0 : error.message) || error}`);
     }

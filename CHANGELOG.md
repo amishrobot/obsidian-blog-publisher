@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.0.30 (2026-08-13)
+- Link posts now have a Link section in the panel: URL, title, description, and card image,
+  edited as fields instead of nested YAML. The `link:` block was the one thing the plugin
+  still made you hand-write, and Obsidian's property editor cannot represent it at all.
+- Added Fetch, which reads the linked page's own og/twitter/meta tags and fills the title
+  and description, downloads its share image into the post's asset folder, and stamps the
+  capture date. Metadata is captured when the post is written rather than fetched when the
+  site builds, so the card records what the page said the day it was linked.
+- Publishing now carries a frontmatter card image through the same pipeline as body images:
+  the wikilink is uploaded and rewritten to its published path. Previously an image
+  referenced only from frontmatter was invisible to the body scan and shipped unresolved.
+- The panel flags a link title identical to the post title, which the site's clipping hides
+  to avoid printing the same name twice.
+
+## v2.0.29 (2026-08-13)
+- Added a "New Blog Post" command. Prompts for title, blog, type (post or link), and slug,
+  then creates the note inside the target's posts folder with complete frontmatter. Notes
+  created by hand landed outside `posts/`, where the panel does not recognise them at all,
+  and lacked the `date` and `slug` that publishing requires.
+- The Frontmatter pre-publish check now requires `date` and `slug`, matching what
+  PostService throws on. It previously passed notes with no frontmatter at all and
+  substituted a basename-derived slug that publishing then rejected, so all five checks
+  went green and Publish died with a raw exception.
+
 ## v2.0.28 (2026-08-12)
 - The Images pre-publish check now inspects markdown images and raw img tags, not just
   wikilinks. It resolves note-relative sources against the note, and fails on vault-root

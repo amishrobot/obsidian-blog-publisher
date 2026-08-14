@@ -2,8 +2,9 @@ import { ItemView, WorkspaceLeaf, TFile, parseYaml } from 'obsidian';
 import { h, render } from 'preact';
 import { PublishPanel } from './components/PublishPanel';
 import type BlogPublisherPlugin from './main';
-import { PostState } from './models/types';
+import { LinkMeta, PostState } from './models/types';
 import { CheckResult } from './services/ChecksService';
+import { LinkMetadataService } from './services/LinkMetadataService';
 import { siteNameFromPath } from './utils/targetRouting';
 
 export const VIEW_TYPE_BLOG_PUBLISHER = 'blog-publisher-view';
@@ -81,6 +82,8 @@ export class PublishView extends ItemView {
           onThemeChange: (theme: string) => this.handleThemeChange(file, theme),
           onSlugChange: (slug: string) => this.handleSlugChange(file, slug),
           onTagsChange: (tags: string[]) => this.handleTagsChange(file, tags),
+          onLinkChange: (patch: Partial<LinkMeta>) => this.handleLinkChange(file, patch),
+          onFetchLinkMetadata: (url: string) => this.handleFetchLinkMetadata(file, url),
           onPublish: () => this.handlePublish(file),
           onPublishConfig: () => this.handlePublishConfig(file),
           onRunChecks: () => this.handleRunChecks(file),
@@ -188,6 +191,7 @@ export class PublishView extends ItemView {
       status: String(fm.status || 'draft'),
       type: String(fm.type || 'post'),
       tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
+      link: fm.link && typeof fm.link === 'object' ? (fm.link as LinkMeta) : null,
       wordCount,
       lastModified: new Date(file.stat.mtime).toISOString(),
       publishedHash: String(fm.publishedHash || ''),
@@ -261,6 +265,43 @@ export class PublishView extends ItemView {
       fm.tags = tags;
     });
     await this.refresh();
+  }
+
+  /** Merges a partial edit into the `link:` block, dropping emptied fields. */
+  private async handleLinkChange(file: TFile, patch: Partial<LinkMeta>): Promise<void> {
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const current = fm.link && typeof fm.link === 'object' ? { ...fm.link } : {};
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined || value === '') delete current[key];
+        else current[key] = value;
+      }
+      if (Object.keys(current).length > 0) fm.link = current;
+      else delete fm.link;
+    });
+    await this.refresh();
+  }
+
+  private async handleFetchLinkMetadata(file: TFile, url: string): Promise<void> {
+    const state = await this.buildPostState(file);
+    const slug = state.slug || this.app.metadataCache.fileToLinktext(file, '');
+
+    // Card image lands beside the post's other assets, so publishing carries it
+    // through the same image pipeline the body uses.
+    const settings = this.plugin.getEffectiveSettingsForPath(file.path);
+    const blogRoot = String(settings.postsFolder || '').replace(/\/posts\/?$/, '');
+    const year = String(state.date || '').slice(0, 4) || String(new Date().getFullYear());
+    const assetFolder = `${blogRoot}/_assets/images/${year}/${slug}`;
+
+    const service = new LinkMetadataService(this.app);
+    const fetched = await service.fetch(url, slug, assetFolder);
+
+    const { imageWarning, ...meta } = fetched;
+    await this.handleLinkChange(file, meta);
+
+    if (imageWarning) {
+      // Everything else was captured; say what was skipped rather than failing.
+      throw new Error(`Metadata captured, but the image was skipped: ${imageWarning}`);
+    }
   }
 
   private async handlePublish(file: TFile): Promise<void> {

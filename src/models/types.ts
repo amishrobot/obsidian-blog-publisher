@@ -78,6 +78,25 @@ export interface PostData {
   publishedHash: string;
 }
 
+// ── Link posts ──────────────────────────────────────────────────────
+
+/**
+ * Metadata about the page a link post points at, captured when the post is
+ * written rather than fetched when the site builds. The card then records what
+ * the page said the day it was linked, and dead links keep rendering.
+ *
+ * `image` holds a vault wikilink (`[[slug-card.jpg]]`) until publish, when
+ * PostService uploads the file and rewrites it to the published path — the
+ * same trip body images make.
+ */
+export interface LinkMeta {
+  url?: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  captured?: string;
+}
+
 // ── Post State (what the panel tracks) ──────────────────────────────
 
 export interface PostState {
@@ -87,6 +106,7 @@ export interface PostState {
   status: string;
   type: string;
   tags: string[];
+  link: LinkMeta | null;
   wordCount: number;
   lastModified: string;
   publishedHash: string;

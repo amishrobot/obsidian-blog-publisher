@@ -19,20 +19,21 @@ export class ChecksService {
   }
 
   async checkFrontmatter(file: TFile): Promise<CheckResult> {
+    // This check has to mirror what PostService actually requires at publish
+    // time — it throws on a missing date or slug. Previously a note with no
+    // frontmatter at all passed here, and a missing slug was silently replaced
+    // with a basename-derived one that PostService would then reject, so all
+    // five checks went green and Publish died with a raw exception instead.
+    // Anything that passes here must be publishable.
     const fm = await this.parseFrontmatter(file);
-    if (!fm) {
-      return this.slugify(file.basename)
-        ? { passed: true }
-        : { passed: false, message: 'No frontmatter found' };
-    }
+    if (!fm) return { passed: false, message: 'No frontmatter found' };
+
     const missing: string[] = [];
-    const title = String(fm.title || '').trim();
-    if (!title) {
-      // Some legacy posts intentionally/accidentally have empty title in frontmatter.
-      // We can safely fall back to filename for publish flow.
-    }
-    const slug = String(fm.slug || '').trim() || this.slugify(file.basename);
-    if (!slug) missing.push('slug');
+    // `title` is deliberately not required: PostService falls back to the
+    // filename, and some legacy posts have an empty title on purpose.
+    if (!String(fm.slug ?? '').trim()) missing.push('slug');
+    if (!String(fm.date ?? '').trim()) missing.push('date');
+
     if (missing.length > 0) {
       return { passed: false, message: `Missing: ${missing.join(', ')}` };
     }

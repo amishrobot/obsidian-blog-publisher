@@ -31,6 +31,12 @@ export class PostService {
     const year = yearMatch[1];
     const urlFormat = this.resolveUrlFormat();
     const images = await this.resolveImages(content, year, slug, urlFormat);
+    // A link post's card image is referenced only from frontmatter, so the
+    // body scan above never sees it. Collect it separately or it ships as a
+    // wikilink the site cannot resolve.
+    const cardImage = this.resolveLinkCardImage(fm, year, slug, urlFormat, images);
+    if (cardImage) images.push(cardImage);
+
     const withTargetFrontmatter = this.rewriteFrontmatterForTarget(content, fm, date, slug, urlFormat);
     const transformedMarkdown = this.rewriteImageLinks(withTargetFrontmatter, images, year, slug, urlFormat);
     const publishedHash = await this.computeHash(transformedMarkdown, images);
@@ -100,9 +106,58 @@ export class PostService {
     return images;
   }
 
+  /**
+   * Resolves `link.image` when it holds a vault wikilink. An already-absolute
+   * path (`/_assets/...`) is left alone — those were written by hand before
+   * capture existed, and the file is already in the repo.
+   */
+  private resolveLinkCardImage(
+    fm: Record<string, unknown>,
+    year: string,
+    slug: string,
+    urlFormat: 'year-slug' | 'posts-slug',
+    existing: ImageData[]
+  ): ImageData | null {
+    const link = fm.link as Record<string, unknown> | undefined;
+    const raw = String(link?.image || '').trim();
+    if (!raw) return null;
+
+    const wikilink = raw.match(/^\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]$/);
+    if (!wikilink) return null;
+
+    const target = wikilink[1].trim();
+    const resolved = this.app.metadataCache.getFirstLinkpathDest(target, '');
+    if (!resolved) throw new Error(`Link card image not found in vault: ${target}`);
+
+    const filename = this.sanitizeFilename(resolved.name);
+    // If the body already ships this exact file, reuse that upload.
+    const duplicate = existing.find((image) => image.vaultPath === resolved.path);
+    if (duplicate) return null;
+
+    return {
+      vaultPath: resolved.path,
+      filename,
+      repoPath: urlFormat === 'posts-slug'
+        ? `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${slug}/${filename}`
+        : `${this.normalizeRepoPath(this.settings.repoImagesPath || 'public/_assets/images')}/${year}/${slug}/${filename}`,
+      originalWikilink: raw,
+    };
+  }
+
   rewriteImageLinks(content: string, images: ImageData[], year: string, slug: string, urlFormat: 'year-slug' | 'posts-slug'): string {
     let result = content;
     for (const img of images) {
+      // Frontmatter card images are bare wikilinks, not markdown embeds, and
+      // become a plain path rather than an `![](…)`.
+      if (!img.originalWikilink.startsWith('!')) {
+        const encoded = encodeURIComponent(img.filename);
+        const path = urlFormat === 'posts-slug'
+          ? `/_assets/images/${slug}/${encoded}`
+          : `/_assets/images/${year}/${slug}/${encoded}`;
+        result = result.replaceAll(img.originalWikilink, path);
+        continue;
+      }
+
       const altMatch = img.originalWikilink.match(/!\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/);
       const alt = altMatch?.[2]?.trim() || '';
       const encodedFilename = encodeURIComponent(img.filename);

@@ -1,6 +1,6 @@
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { useState, useCallback, useMemo, useEffect } from 'preact/hooks';
-import { PostState, BlogPublisherSettings, STATUS_CONFIG, THEME_PALETTES, CHECKS, Change, ThemePalette } from '../models/types';
+import { PostState, BlogPublisherSettings, LinkMeta, STATUS_CONFIG, THEME_PALETTES, CHECKS, Change, ThemePalette } from '../models/types';
 import { CheckResult } from '../services/ChecksService';
 import { StatusPill } from './StatusPill';
 import { ThemeChip } from './ThemeChip';
@@ -9,6 +9,7 @@ import { AnimatedSection } from './AnimatedSection';
 import { FieldRow } from './FieldRow';
 import { TagInput } from './TagInput';
 import { SlugEditor } from './SlugEditor';
+import { LinkSection } from './LinkSection';
 import { UrlPreview } from './UrlPreview';
 import { ChangeRow } from './ChangeRow';
 import { ActionButton } from './ActionButton';
@@ -24,6 +25,8 @@ export interface PublishPanelProps {
   onThemeChange: (theme: string) => Promise<void>;
   onSlugChange: (slug: string) => void;
   onTagsChange: (tags: string[]) => void;
+  onLinkChange: (patch: Partial<LinkMeta>) => void;
+  onFetchLinkMetadata: (url: string) => Promise<void>;
   onPublish: () => Promise<void>;
   onPublishConfig: () => Promise<void>;
   onRunChecks: () => Promise<Record<string, CheckResult>>;
@@ -59,6 +62,7 @@ function computeChanges(saved: PostState, current: PostState, savedTheme: string
 export function PublishPanel({
   post, saved, settings,
   onStatusChange, onThemeChange, onSlugChange, onTagsChange,
+  onLinkChange, onFetchLinkMetadata,
   onPublish, onPublishConfig, onRunChecks, onOpenDeployHistory,
 }: PublishPanelProps) {
   const [publishing, setPublishing] = useState(false);
@@ -292,6 +296,23 @@ export function PublishPanel({
         </AnimatedSection>
 
         <div style={{ height: 1, background: t.border, margin: '8px 0', transition: 'background 0.4s ease' }} />
+
+        {/* Link — only link posts carry a clipping, and only it needs this data */}
+        {post.type === 'link' && (
+          <Fragment>
+            <AnimatedSection title="Link" collapsible defaultOpen={true} t={t}>
+              <LinkSection
+                link={post.link}
+                postTitle={post.title}
+                onChange={onLinkChange}
+                onFetch={onFetchLinkMetadata}
+                t={t}
+              />
+            </AnimatedSection>
+
+            <div style={{ height: 1, background: t.border, margin: '8px 0', transition: 'background 0.4s ease' }} />
+          </Fragment>
+        )}
 
         {/* Tags */}
         <AnimatedSection title="Tags" collapsible defaultOpen={true} t={t}>

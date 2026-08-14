@@ -1,4 +1,11 @@
-import { Plugin, WorkspaceLeaf, TFile, parseYaml } from 'obsidian';
+import { Plugin, WorkspaceLeaf, TFile, Notice, normalizePath, parseYaml } from 'obsidian';
+import { NewPostModal, NewPostRequest } from './NewPostModal';
+import {
+  buildNewPostContent,
+  localDateStamp,
+  newPostFolder,
+  sanitizeFileName,
+} from './utils/newPost';
 import { PublishView, VIEW_TYPE_BLOG_PUBLISHER } from './PublishView';
 import { PostService } from './services/PostService';
 import { GitHubService } from './services/GitHubService';
@@ -6,7 +13,12 @@ import { ChecksService } from './services/ChecksService';
 import { ConfigService } from './services/ConfigService';
 import { BlogPublisherSettings, BlogTargetSettings, DEFAULT_SETTINGS } from './models/types';
 import { SettingsTab } from './SettingsTab';
-import { getEffectiveSettingsForPath, isPostPath, resolveTargetForPath } from './utils/targetRouting';
+import {
+  getEffectiveSettingsForPath,
+  isPostPath,
+  normalizeFolderPath,
+  resolveTargetForPath,
+} from './utils/targetRouting';
 
 const STATE_CONFIG_PATH = '_system/_state/blog-config.md';
 
@@ -68,6 +80,12 @@ export default class BlogPublisherPlugin extends Plugin {
         if (!checking) this.publishBlogConfig(file.path);
         return true;
       },
+    });
+
+    this.addCommand({
+      id: 'new-blog-post',
+      name: 'New Blog Post',
+      callback: () => this.promptNewPost(),
     });
 
     // Refresh panel when active file changes
@@ -157,6 +175,90 @@ export default class BlogPublisherPlugin extends Plugin {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
+  }
+
+  private blogTargets(): BlogTargetSettings[] {
+    const configured = (this.settings.blogTargets || []).filter((target) => target?.postsFolder);
+    if (configured.length > 0) return configured;
+    // Single-blog vaults never define targets; synthesise one from flat settings.
+    return this.settings.postsFolder ? [{ name: 'Blog', postsFolder: this.settings.postsFolder }] : [];
+  }
+
+  async promptNewPost(): Promise<void> {
+    const targets = this.blogTargets();
+    if (targets.length === 0) {
+      new Notice('No blog target configured. Add one to blogTargets in blog-config.md first.');
+      return;
+    }
+
+    // If the current note belongs to a blog, default the picker to that blog.
+    const active = this.app.workspace.getActiveFile();
+    const activeTarget = active ? resolveTargetForPath(active.path, this.settings) : null;
+    const preset = activeTarget
+      ? targets.findIndex((target) => target.postsFolder === activeTarget.postsFolder)
+      : 0;
+
+    new NewPostModal(this.app, targets, (request) => this.createNewPost(request), preset).open();
+  }
+
+  /**
+   * Creates the note inside the target's posts folder, because that path — not
+   * the frontmatter — is what makes the publish panel recognise it at all.
+   */
+  private async createNewPost(request: NewPostRequest): Promise<void> {
+    try {
+      const postsFolder = normalizeFolderPath(request.target.postsFolder || this.settings.postsFolder);
+      if (!postsFolder) {
+        new Notice('That blog target has no postsFolder configured.');
+        return;
+      }
+
+      const date = localDateStamp();
+      const urlFormat = request.target.postUrlFormat ?? this.settings.postUrlFormat;
+      const folder = newPostFolder(postsFolder, urlFormat, date);
+      await this.ensureFolder(folder);
+
+      // The filename carries the title (matching the existing vault convention
+      // and the rename-syncs-slug behaviour); the slug lives in frontmatter.
+      const basename = sanitizeFileName(request.title) || request.slug;
+      const file = await this.app.vault.create(
+        this.availablePath(folder, basename),
+        buildNewPostContent(request, date)
+      );
+
+      await this.app.workspace.getLeaf(false).openFile(file);
+      await this.activateView();
+      new Notice(`Created ${file.path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Notice(`Could not create post: ${message}`);
+      console.error('New blog post failed:', error);
+    }
+  }
+
+  private availablePath(folder: string, basename: string): string {
+    let candidate = `${folder}/${basename}.md`;
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(candidate)) {
+      candidate = `${folder}/${basename} ${counter}.md`;
+      counter += 1;
+    }
+    return candidate;
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    const parts = normalizePath(folder).split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (this.app.vault.getAbstractFileByPath(current)) continue;
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        // A concurrent create is fine; anything else is not.
+        if (!String(error).toLowerCase().includes('already exists')) throw error;
+      }
+    }
   }
 
   private async syncTitleAndSlugFromName(file: TFile, oldPath?: string): Promise<void> {

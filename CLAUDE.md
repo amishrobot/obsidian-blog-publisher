@@ -58,15 +58,35 @@ src/
 ├── SettingsTab.ts              # Plugin settings UI (fallback for non-JoshOS)
 ├── models/types.ts             # All interfaces, constants, theme palettes
 │                              # STATUS_CONFIG: draft, publish (2 statuses only)
+│                              # LinkMeta: the `link:` block on link posts
+├── NewPostModal.ts             # "New Blog Post" prompt: title, blog, type, slug
+│                              # Creates the note INSIDE the target's posts folder —
+│                              # that path, not frontmatter, is what makes the panel
+│                              # recognise a note at all (see utils/targetRouting)
 ├── services/
 │   ├── GitHubService.ts        # GitHub REST API (publish/unpublish via git tree API)
 │   ├── PostService.ts          # Build post data, resolve images, compute hashes
 │   │                           # Parses frontmatter via parseYaml (NOT metadataCache)
+│   │                           # Also uploads link.image — referenced only from
+│   │                           # frontmatter, so the body image scan never sees it
 │   ├── ConfigService.ts        # Read JoshOS _system/_state/blog-config.md
-│   └── ChecksService.ts       # 5 pre-publish validators
+│   ├── LinkMetadataService.ts  # Fetch a linked page's og tags + download its image
+│   │                           # Uses requestUrl (not fetch) to sidestep CORS
+│   └── ChecksService.ts       # 5 pre-publish validators. Must stay in step with
+│                              # what PostService throws on: date and slug
+├── utils/
+│   ├── targetRouting.ts        # Which blog a path belongs to; isPostPath()
+│   ├── newPost.ts              # Pure: slug, filename, folder, frontmatter builder
+│   └── linkMetadata.ts         # Pure: og/twitter/meta parsing
 ├── hooks/useHover.ts           # Shared hover state hook
-└── components/                 # 14 Preact components (StatusPill, ThemeChip, etc.)
+└── components/                 # 15 Preact components (StatusPill, LinkSection, etc.)
 ```
+
+**Frontmatter is the thing this plugin exists to hide.** Anything a post needs
+should be editable in the panel, not typed as YAML — Obsidian's property editor
+cannot represent a nested block like `link:` at all, and the vault runs with
+`propertiesInDocument: hidden`, so hand-editing means editing something the
+author cannot see. New per-post fields belong in a panel section.
 
 ## CRITICAL: Release & Deployment Checklist
 
@@ -125,6 +145,7 @@ src/
 | Design doc | `~/Projects/AmishRobot-Blog/docs/plans/2026-02-12-blog-publisher-v2-design.md` |
 | Implementation plan | `~/Projects/AmishRobot-Blog/docs/plans/2026-02-12-blog-publisher-v2-plan.md` |
 | UI prototype (React) | `~/Projects/AmishRobot-Blog/docs/plans/obsidian-publish-panel-prototype.jsx` |
+| **Image pipeline** (read before changing image handling) | `~/Projects/AmishRobot-Blog/docs/image-pipeline.md` |
 
 ## Development
 
