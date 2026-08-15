@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.31 (2026-08-15)
+- The panel showed the wrong day for every post. A frontmatter `date` is a calendar
+  date, and `new Date('2026-08-13')` parses as UTC midnight — rendered in local time
+  that reads "Aug 12" anywhere west of UTC, while the site, which builds in UTC, said
+  the 13th. Date formatting moved into `utils/dates.ts` and covered by tests, since
+  this is the kind of bug that looks correct on a machine set to UTC.
+- Modified time still displays in local time, deliberately: it is a real instant
+  rather than a calendar date, so it should say when you actually saved.
+
 ## v2.0.30 (2026-08-13)
 - Link posts now have a Link section in the panel: URL, title, description, and card image,
   edited as fields instead of nested YAML. The `link:` block was the one thing the plugin

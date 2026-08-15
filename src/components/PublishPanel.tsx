@@ -10,6 +10,7 @@ import { FieldRow } from './FieldRow';
 import { TagInput } from './TagInput';
 import { SlugEditor } from './SlugEditor';
 import { LinkSection } from './LinkSection';
+import { formatModified, formatPostDate } from '../utils/dates';
 import { UrlPreview } from './UrlPreview';
 import { ChangeRow } from './ChangeRow';
 import { ActionButton } from './ActionButton';
@@ -286,9 +287,9 @@ export function PublishPanel({
 
         {/* Metadata */}
         <AnimatedSection title="Metadata" collapsible defaultOpen={true} t={t}>
-          <FieldRow label="Date" t={t}>{new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</FieldRow>
+          <FieldRow label="Date" t={t}>{formatPostDate(post.date)}</FieldRow>
           <FieldRow label="Type" t={t}><span style={{ textTransform: 'capitalize' }}>{post.type}</span></FieldRow>
-          <FieldRow label="Modified" t={t}>{new Date(post.lastModified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</FieldRow>
+          <FieldRow label="Modified" t={t}>{formatModified(post.lastModified)}</FieldRow>
           <div style={{ padding: '5px 0' }}>
             <div style={{ color: t.textMuted, fontSize: 12.5, marginBottom: 4, transition: 'color 0.25s ease' }}>Slug</div>
             <SlugEditor slug={post.slug} onChange={onSlugChange} t={t} />

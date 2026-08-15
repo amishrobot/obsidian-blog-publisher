@@ -1248,6 +1248,30 @@ function LinkSection({ link, postTitle, onChange, onFetch, t: t3 }) {
   ), label("Card image"), /* @__PURE__ */ _("div", { style: { fontSize: 11.5, color: (link == null ? void 0 : link.image) ? t3.text : t3.textMuted, lineHeight: 1.5 } }, (link == null ? void 0 : link.image) ? /* @__PURE__ */ _("span", { style: { fontFamily: "'SF Mono', monospace" } }, link.image) : "None. Fetch pulls the page\u2019s share image in automatically."), (link == null ? void 0 : link.captured) && /* @__PURE__ */ _("div", { style: { fontSize: 11, color: t3.textMuted, marginTop: 8 } }, "Captured ", link.captured));
 }
 
+// src/utils/dates.ts
+function formatPostDate(value) {
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime()))
+    return String(value != null ? value : "");
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC"
+  });
+}
+function formatModified(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime()))
+    return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
 // src/components/UrlPreview.tsx
 function UrlPreview({ url, t: t3 }) {
   const [copied, setCopied] = d2(false);
@@ -1662,7 +1686,7 @@ function PublishPanel({
     textTransform: "capitalize",
     color: selectedTheme !== (settings.themes[0] || "classic") ? "#e5c07b" : t3.text,
     transition: "color 0.25s ease"
-  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 }))), /* @__PURE__ */ _("div", { style: { marginTop: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handlePublishConfig, t: t3, disabled: publishingConfig }, publishingConfig ? "Publishing config..." : "Publish config"))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, new Date(post.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, new Date(post.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), post.type === "link" && /* @__PURE__ */ _(k, null, /* @__PURE__ */ _(AnimatedSection, { title: "Link", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(
+  } }, ((_a = THEME_PALETTES[settings.themes[0] || "classic"]) == null ? void 0 : _a.label) || "Classic", selectedTheme !== (settings.themes[0] || "classic") && ` \u2192 ${((_b = THEME_PALETTES[selectedTheme]) == null ? void 0 : _b.label) || selectedTheme}`))), /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, themes.map((id) => /* @__PURE__ */ _(ThemeChip, { key: id, themeId: id, selected: selectedTheme === id, onClick: () => setSelectedTheme(id), t: t3 }))), /* @__PURE__ */ _("div", { style: { marginTop: 8 } }, /* @__PURE__ */ _(HoverButton, { onClick: handlePublishConfig, t: t3, disabled: publishingConfig }, publishingConfig ? "Publishing config..." : "Publish config"))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Checks", t: t3, badge: allChecksPassed && !checksRunning ? /* @__PURE__ */ _("span", { style: { fontSize: 10, color: "#98c379", fontWeight: 400, textTransform: "none", letterSpacing: "0" } }, "All passed") : null }, /* @__PURE__ */ _("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 } }, CHECKS.map((c3) => /* @__PURE__ */ _(CheckBadge, { key: c3.id, label: c3.label, passed: checks[c3.id] === true, running: checks[c3.id] === "running", justPassed: justPassed[c3.id] || false }))), !checksRunning && !allChecksPassed && /* @__PURE__ */ _(HoverButton, { onClick: runChecks, t: t3 }, "Run checks")), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), /* @__PURE__ */ _(AnimatedSection, { title: "Metadata", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(FieldRow, { label: "Date", t: t3 }, formatPostDate(post.date)), /* @__PURE__ */ _(FieldRow, { label: "Type", t: t3 }, /* @__PURE__ */ _("span", { style: { textTransform: "capitalize" } }, post.type)), /* @__PURE__ */ _(FieldRow, { label: "Modified", t: t3 }, formatModified(post.lastModified)), /* @__PURE__ */ _("div", { style: { padding: "5px 0" } }, /* @__PURE__ */ _("div", { style: { color: t3.textMuted, fontSize: 12.5, marginBottom: 4, transition: "color 0.25s ease" } }, "Slug"), /* @__PURE__ */ _(SlugEditor, { slug: post.slug, onChange: onSlugChange, t: t3 }))), /* @__PURE__ */ _("div", { style: { height: 1, background: t3.border, margin: "8px 0", transition: "background 0.4s ease" } }), post.type === "link" && /* @__PURE__ */ _(k, null, /* @__PURE__ */ _(AnimatedSection, { title: "Link", collapsible: true, defaultOpen: true, t: t3 }, /* @__PURE__ */ _(
     LinkSection,
     {
       link: post.link,
