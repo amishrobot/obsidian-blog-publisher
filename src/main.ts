@@ -11,7 +11,12 @@ import { PostService } from './services/PostService';
 import { GitHubService } from './services/GitHubService';
 import { ChecksService } from './services/ChecksService';
 import { ConfigService } from './services/ConfigService';
-import { BlogPublisherSettings, BlogTargetSettings, DEFAULT_SETTINGS } from './models/types';
+import {
+  BlogPublisherSettings,
+  BlogTargetSettings,
+  DEFAULT_SETTINGS,
+  settingsForDisk,
+} from './models/types';
 import { SettingsTab } from './SettingsTab';
 import {
   getEffectiveSettingsForPath,
@@ -33,6 +38,13 @@ export default class BlogPublisherPlugin extends Plugin {
   checksService: ChecksService;
   private configService: ConfigService;
   private writeLock: Promise<void> = Promise.resolve();
+  /**
+   * True when `settings.githubToken` holds a value read from the secrets file
+   * rather than one the user typed. Such a token must never be written back to
+   * data.json — that is how a secret deliberately kept in one place ends up
+   * duplicated in plaintext somewhere else.
+   */
+  private tokenFromSecretsFile = false;
   private refreshFastTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshSettledTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -444,7 +456,37 @@ export default class BlogPublisherPlugin extends Plugin {
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    await this.saveData(this.settingsForDisk());
+  }
+
+  /** True when the active token came from the secrets file, not the settings field. */
+  get tokenIsFromSecretsFile(): boolean {
+    return this.tokenFromSecretsFile;
+  }
+
+  /**
+   * Record a token the user typed. A typed value is a deliberate override, so
+   * it is persisted; clearing the field hands sourcing back to the secrets
+   * file and rehydrates immediately, so the session is never left tokenless
+   * waiting for the next refresh.
+   */
+  async setGithubTokenOverride(value: string): Promise<void> {
+    this.settings.githubToken = value;
+    this.tokenFromSecretsFile = false;
+    await this.saveSettings();
+    if (!value.trim()) {
+      await this.hydrateTokenFromSecretsFile();
+    }
+  }
+
+  /**
+   * The in-memory settings carry a token hydrated from the secrets file; the
+   * on-disk copy must not. Without this, changing any unrelated setting — every
+   * field in the settings tab calls saveSettings() — writes that secret into
+   * data.json in plaintext.
+   */
+  private settingsForDisk(): BlogPublisherSettings {
+    return settingsForDisk(this.settings, this.tokenFromSecretsFile);
   }
 
   private async ensureRequiredFrontmatter(file: TFile): Promise<void> {
@@ -507,6 +549,7 @@ export default class BlogPublisherPlugin extends Plugin {
   }
 
   private async hydrateTokenFromSecretsFile(): Promise<void> {
+    this.tokenFromSecretsFile = false;
     if (this.settings.githubToken && this.settings.githubToken.trim().length > 0) return;
 
     const filePath = (this.settings.secretsFilePath || '').trim();
@@ -523,6 +566,7 @@ export default class BlogPublisherPlugin extends Plugin {
       const resolved = parsed[tokenKey];
       if (typeof resolved === 'string' && resolved.trim().length > 0) {
         this.settings.githubToken = resolved.trim();
+        this.tokenFromSecretsFile = true;
       }
     } catch (error) {
       console.warn(`Failed to read GitHub token from ${filePath}:`, error);

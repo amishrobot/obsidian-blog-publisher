@@ -654,6 +654,11 @@ function D2(n2, t3) {
 }
 
 // src/models/types.ts
+function settingsForDisk(settings, tokenFromSecretsFile) {
+  if (!tokenFromSecretsFile)
+    return settings;
+  return { ...settings, githubToken: "" };
+}
 var DEFAULT_SETTINGS = {
   githubToken: "",
   secretsFilePath: ".system/config.json",
@@ -3014,10 +3019,12 @@ var SettingsTab = class extends import_obsidian8.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian8.Setting(containerEl).setName("GitHub token").setDesc("Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).").addText(
-      (text) => text.setPlaceholder("github_pat_...").setValue(this.plugin.settings.githubToken).then((t3) => t3.inputEl.type = "password").onChange(async (value) => {
-        this.plugin.settings.githubToken = value;
-        await this.plugin.saveSettings();
+    const fromSecrets = this.plugin.tokenIsFromSecretsFile;
+    new import_obsidian8.Setting(containerEl).setName("GitHub token").setDesc(
+      fromSecrets ? "Currently read from your secrets file. Leave empty to keep it there; type a value here only to override it." : "Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`)."
+    ).addText(
+      (text) => text.setPlaceholder(fromSecrets ? "using secrets file" : "github_pat_...").setValue(fromSecrets ? "" : this.plugin.settings.githubToken).then((t3) => t3.inputEl.type = "password").onChange(async (value) => {
+        await this.plugin.setGithubTokenOverride(value);
       })
     );
     new import_obsidian8.Setting(containerEl).setName("Secrets file path").setDesc("Vault-local JSON file for secrets (JoshOS pattern: `.system/config.json`).").addText(
@@ -3114,6 +3121,13 @@ var BlogPublisherPlugin = class extends import_obsidian9.Plugin {
   constructor() {
     super(...arguments);
     this.writeLock = Promise.resolve();
+    /**
+     * True when `settings.githubToken` holds a value read from the secrets file
+     * rather than one the user typed. Such a token must never be written back to
+     * data.json — that is how a secret deliberately kept in one place ends up
+     * duplicated in plaintext somewhere else.
+     */
+    this.tokenFromSecretsFile = false;
     this.refreshFastTimer = null;
     this.refreshSettledTimer = null;
   }
@@ -3466,7 +3480,34 @@ theme: ${theme}
     await this.refreshRuntimeSettings();
   }
   async saveSettings() {
-    await this.saveData(this.settings);
+    await this.saveData(this.settingsForDisk());
+  }
+  /** True when the active token came from the secrets file, not the settings field. */
+  get tokenIsFromSecretsFile() {
+    return this.tokenFromSecretsFile;
+  }
+  /**
+   * Record a token the user typed. A typed value is a deliberate override, so
+   * it is persisted; clearing the field hands sourcing back to the secrets
+   * file and rehydrates immediately, so the session is never left tokenless
+   * waiting for the next refresh.
+   */
+  async setGithubTokenOverride(value) {
+    this.settings.githubToken = value;
+    this.tokenFromSecretsFile = false;
+    await this.saveSettings();
+    if (!value.trim()) {
+      await this.hydrateTokenFromSecretsFile();
+    }
+  }
+  /**
+   * The in-memory settings carry a token hydrated from the secrets file; the
+   * on-disk copy must not. Without this, changing any unrelated setting — every
+   * field in the settings tab calls saveSettings() — writes that secret into
+   * data.json in plaintext.
+   */
+  settingsForDisk() {
+    return settingsForDisk(this.settings, this.tokenFromSecretsFile);
   }
   async ensureRequiredFrontmatter(file) {
     await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -3522,6 +3563,7 @@ theme: ${theme}
     }
   }
   async hydrateTokenFromSecretsFile() {
+    this.tokenFromSecretsFile = false;
     if (this.settings.githubToken && this.settings.githubToken.trim().length > 0)
       return;
     const filePath = (this.settings.secretsFilePath || "").trim();
@@ -3538,6 +3580,7 @@ theme: ${theme}
       const resolved = parsed[tokenKey];
       if (typeof resolved === "string" && resolved.trim().length > 0) {
         this.settings.githubToken = resolved.trim();
+        this.tokenFromSecretsFile = true;
       }
     } catch (error) {
       console.warn(`Failed to read GitHub token from ${filePath}:`, error);

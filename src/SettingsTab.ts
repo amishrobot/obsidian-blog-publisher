@@ -13,17 +13,25 @@ export class SettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    const fromSecrets = this.plugin.tokenIsFromSecretsFile;
+
     new Setting(containerEl)
       .setName('GitHub token')
-      .setDesc('Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).')
+      .setDesc(
+        fromSecrets
+          ? 'Currently read from your secrets file. Leave empty to keep it there; type a value here only to override it.'
+          : 'Optional override. If empty, token is read from vault config (`secretsFilePath` + `githubTokenConfigKey`).'
+      )
       .addText((text) =>
         text
-          .setPlaceholder('github_pat_...')
-          .setValue(this.plugin.settings.githubToken)
+          .setPlaceholder(fromSecrets ? 'using secrets file' : 'github_pat_...')
+          // Show the field empty when the token came from the secrets file. Rendering
+          // the hydrated secret here would both display it and, on any edit, write it
+          // back into data.json as if the user had typed it.
+          .setValue(fromSecrets ? '' : this.plugin.settings.githubToken)
           .then((t) => (t.inputEl.type = 'password'))
           .onChange(async (value) => {
-            this.plugin.settings.githubToken = value;
-            await this.plugin.saveSettings();
+            await this.plugin.setGithubTokenOverride(value);
           })
       );
 

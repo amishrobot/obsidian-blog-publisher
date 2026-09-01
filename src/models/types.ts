@@ -1,5 +1,21 @@
 // ── Plugin Settings (v1 compat + state file) ───────────────────────
 
+/**
+ * The copy of settings that may be written to data.json.
+ *
+ * A token hydrated from the secrets file lives in memory only — persisting it
+ * would duplicate a secret deliberately kept in one place into a second file,
+ * in plaintext. A token the user typed into settings is an intentional
+ * override and is persisted as-is.
+ */
+export function settingsForDisk(
+  settings: BlogPublisherSettings,
+  tokenFromSecretsFile: boolean
+): BlogPublisherSettings {
+  if (!tokenFromSecretsFile) return settings;
+  return { ...settings, githubToken: '' };
+}
+
 export interface BlogPublisherSettings {
   githubToken: string;
   secretsFilePath: string;
